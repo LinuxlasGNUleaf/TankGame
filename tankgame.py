@@ -6,21 +6,22 @@ WIDTH = 500
 HEIGHT = 500
 
 bg = pygame.image.load("bg.jpg")
-tank = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")
+tank = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 
 class Player(object):
     def __init__(self,coords,img):
         self.x, self.y = coords
         self.angle = 0.0
         self.step = 1
-        self.images = img
         self.orig = img
+        self.img = self.orig[0]
         self.rect = self.img.get_rect()
         self.img_len = len(img)
         self.count = 0
 
     def draw(self,win):
-        self.img = pygame.transform.rotate(self.orig,self.angle)
+        num = int(self.count)%self.img_len
+        self.img = pygame.transform.rotate(self.orig[num],self.angle)
 
         self.rect = self.img.get_rect()  # Replace old rect with new rect.
         self.rect.center = (self.x, self.y)  # Put the new rect's center at old center.
@@ -29,22 +30,25 @@ class Player(object):
         
 
     def move(self,keys):
-        count += 1
-
         rad = math.radians(self.angle)
         if keys[pygame.K_w]:
             self.y -= math.cos(rad)
             self.x -= math.sin(rad)
+            self.count += 0.05
 
         elif keys[pygame.K_s]:
             self.y += math.cos(rad)
             self.x += math.sin(rad)
+            self.count += 0.05
         
         if keys[pygame.K_d]:
             self.angle -= self.step
+            self.count += 0.03
 
         elif keys[pygame.K_a]:
             self.angle += self.step
+            self.count += 0.03
+            
             
 
 
@@ -56,7 +60,7 @@ class GameManager():
 
         self.win = pygame.display.set_mode((WIDTH,HEIGHT))
         pygame.display.set_caption("Tank Game")
-        pygame.display.set_icon(tank)
+        pygame.display.set_icon(tank[0])
     
 
     def redrawGameWindow(self):
