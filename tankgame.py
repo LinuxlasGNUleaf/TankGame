@@ -6,32 +6,46 @@ WIDTH = 500
 HEIGHT = 500
 
 bg = pygame.image.load("bg.jpg")
-tank = pygame.image.load("tank.png")
+tank = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")
 
 class Player(object):
     def __init__(self,coords,img):
         self.x, self.y = coords
-        self.orientation = 0.0
-        self.step = math.radians(10)
-        self.img = img
+        self.angle = 0.0
+        self.step = 1
+        self.images = img
         self.orig = img
+        self.rect = self.img.get_rect()
+        self.img_len = len(img)
+        self.count = 0
 
     def draw(self,win):
-        win.blit(self.x,self.y)
+        self.img = pygame.transform.rotate(self.orig,self.angle)
+
+        self.rect = self.img.get_rect()  # Replace old rect with new rect.
+        self.rect.center = (self.x, self.y)  # Put the new rect's center at old center.
+
+        win.blit(self.img,self.rect)
+        
 
     def move(self,keys):
+        count += 1
+
+        rad = math.radians(self.angle)
         if keys[pygame.K_w]:
-            self.x += math.cos(self.orientation)
-            self.y += math.sin(self.orientation)
+            self.y -= math.cos(rad)
+            self.x -= math.sin(rad)
+
         elif keys[pygame.K_s]:
-            self.x -= math.cos(self.orientation)
-            self.y -= math.sin(self.orientation)
+            self.y += math.cos(rad)
+            self.x += math.sin(rad)
         
         if keys[pygame.K_d]:
-            self.img = self.orig
-            pygame.transform.rotate(self.img,self.orientation+self.step)
+            self.angle -= self.step
+
         elif keys[pygame.K_a]:
-            pygame.transform.rotate(self.img,self.orientation-self.step)
+            self.angle += self.step
+            
 
 
 class GameManager():
@@ -48,6 +62,7 @@ class GameManager():
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
         self.player.draw(self.win)
+        #self.win.blit(tank,(0,0))
         pygame.display.update()
 
 
@@ -59,7 +74,8 @@ class GameManager():
                 if event.type == pygame.QUIT:
                     run = False
             
-            keys =  pygame.keys.get_pressed_keys()
+            keys =  pygame.key.get_pressed()
+            self.player.move(keys)
 
 
             self.redrawGameWindow()
