@@ -1,0 +1,8 @@
+{
+    "python.pythonPath": "/home/jakob/miniconda3/envs/oit-opencv/bin/python",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintArgs": [
+        "----extension-pkg-whitelist=1xml"
+        ]
+}
