@@ -50,6 +50,8 @@ class Player():
         self.keyset = keyset
         self.bulletMgr = BulletManager(self,bullet_cooldown,self.keyset[4],bullet_vel)
         self.border = border
+        self.slider = Slider(self,5,30,(0,100),50)
+        self.HP = 100
 
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -60,11 +62,11 @@ class Player():
 
         self.bulletMgr.drawBullets(win)
         win.blit(self.img,self.rect)
+        self.slider.draw(win)
 
         if DEBUG:
             drawDebug(self.x,self.y,self.angle,win)
             
-
     def move(self,keys):
         self.bulletMgr.moveBullets()
         x_move, y_move = returnXYforAngle(self.angle,self.vel)
@@ -85,7 +87,6 @@ class Player():
                 self.x -= x_move 
             self.count += 0.05
         
-        
         if keys[self.keyset[2]]: #left
             self.angle += self.step
             self.count += 0.03
@@ -95,6 +96,7 @@ class Player():
             self.count += 0.03
         
         self.bulletMgr.createBullets(keys)
+        self.slider.update(self.HP)
     
     def inBoundaries(self):
         if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
@@ -146,7 +148,6 @@ class BulletManager():
             bullet.move()
             if bullet.x > WIDTH or bullet.x < 0 or bullet.y > HEIGHT or bullet.y < 0:
                 self.bullets.remove(bullet)
-            bullet.rect.c
             #TODO Add collision here!
     
     def drawBullets(self,win):
@@ -206,13 +207,17 @@ class Slider():
     
     def update(self,input):
         self.val = map(input,self.in_min,self.in_max,0,self.max_width)
-        self.color = pygame.Color(map(input,self.in_min,self.in_max,255,0),map(input,self.in_min,self.in_max,0,255),0)
+        r = int(map(input,self.in_min,self.in_max,255,0))
+        g = int(map(input,self.in_min,self.in_max,0,255))
+        self.color = pygame.Color(r, g, 0)
 
     def draw(self,win):
         x,y = self.obj.rect.center
-        y -= self.gap - self.height
+        y += self.gap - self.height
         x -= self.val/2
         rect = pygame.Rect(x,y,self.val,self.height)
+        rect2 = pygame.Rect(x-2,y+5,self.val+4,self.height-10)
+        pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
 
 
