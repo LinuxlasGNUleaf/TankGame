@@ -1,7 +1,6 @@
 import pygame
 import math
 
-
 WIDTH = 500
 HEIGHT = 500
 DEBUG = False
@@ -26,9 +25,19 @@ def drawDebug(x,y,angle,win):
     pygame.draw.line(win, (0,255,255),(x,y),(x-x_dir,y))
     pygame.draw.line(win, (255,0,255),(x,y),(x-x_dir,y-y_dir))
 
+def map(value, inMin, inMax, outMin, outMax):
+    if value < inMin:
+        value = inMin
+    elif value > inMax:
+        value = inMax
+    inRange = max(inMax - inMin,1)
+    outRange = outMax - outMin
+    valueScaled = float(value - inMin) / float(inRange)
+
+    return outMin + (valueScaled * outRange)
+
 class Player():
-    def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel):
-        #print("{}, {}, {}, {}, {}, {}".format(coords,vel,img,keyset,bullet_cooldown,bullet_vel))
+    def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel,border):
         self.x, self.y = coords
         self.angle = 0.0
         self.step = 2
@@ -40,6 +49,7 @@ class Player():
         self.count = 0
         self.keyset = keyset
         self.bulletMgr = BulletManager(self,bullet_cooldown,self.keyset[4],bullet_vel)
+        self.border = border
 
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -59,26 +69,38 @@ class Player():
         self.bulletMgr.moveBullets()
         x_move, y_move = returnXYforAngle(self.angle,self.vel)
 
-        if keys[self.keyset[0]]:
+        if keys[self.keyset[0]]: #forward
             self.y -= y_move
             self.x -= x_move 
+            if not(self.inBoundaries()):
+                self.y += y_move
+                self.x += x_move 
             self.count += 0.05
 
-        elif keys[self.keyset[1]]:
+        elif keys[self.keyset[1]]: #backward
             self.y += y_move
             self.x += x_move
+            if not(self.inBoundaries()):
+                self.y -= y_move
+                self.x -= x_move 
             self.count += 0.05
         
         
-        if keys[self.keyset[2]]:
+        if keys[self.keyset[2]]: #left
             self.angle += self.step
             self.count += 0.03
 
-        elif keys[self.keyset[3]]:
+        elif keys[self.keyset[3]]: #right
             self.angle -= self.step
             self.count += 0.03
         
         self.bulletMgr.createBullets(keys)
+    
+    def inBoundaries(self):
+        if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
+            return True
+        else:
+            return False
 
 class Bullet():
     def __init__(self,angle,vel,coords,img):
@@ -104,14 +126,18 @@ class BulletManager():
         self.player = player
         self.bullets = []
         self.cooldown = cooldown
-        self.alt = pygame.time.get_ticks()
+        self.alt = pygame.time.get_ticks()    
         self.key = trigger_key
         self.vel = vel
 
     def createBullets(self,keys):
         time = pygame.time.get_ticks()
         if keys[self.key] and time-self.cooldown > self.alt:
-            newbullet = Bullet(self.player.angle,self.vel,(self.player.x,self.player.y),bullet)
+            angle = self.player.angle
+            x_diff, y_diff = returnXYforAngle(angle,-45)
+            x = self.player.x + x_diff
+            y = self.player.y + y_diff
+            newbullet = Bullet(angle,self.vel,(x,y),bullet)
             self.bullets.append(newbullet)
             self.alt = time
         
@@ -120,6 +146,7 @@ class BulletManager():
             bullet.move()
             if bullet.x > WIDTH or bullet.x < 0 or bullet.y > HEIGHT or bullet.y < 0:
                 self.bullets.remove(bullet)
+            bullet.rect.c
             #TODO Add collision here!
     
     def drawBullets(self,win):
@@ -141,8 +168,9 @@ class GameManager():
         tank_vel = 1
         bullet_vel = 10
         bullet_cooldown = 500
-        self.player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel)
-        self.player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel)
+        border = 10
+        self.player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border)
+        self.player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border)
 
         
     def redrawGameWindow(self):
@@ -167,8 +195,29 @@ class GameManager():
             self.redrawGameWindow()
 
         pygame.quit()
+
+class Slider():
+    def __init__(self,obj,height,max_width,in_range,gap):
+        self.obj = obj
+        self.height = height
+        self.max_width = max_width
+        self.in_min, self.in_max = in_range
+        self.gap = gap
     
-    
+    def update(self,input):
+        self.val = map(input,self.in_min,self.in_max,0,self.max_width)
+        self.color = pygame.Color(map(input,self.in_min,self.in_max,255,0),map(input,self.in_min,self.in_max,0,255),0)
+
+    def draw(self,win):
+        x,y = self.obj.rect.center
+        y -= self.gap - self.height
+        x -= self.val/2
+        rect = pygame.Rect(x,y,self.val,self.height)
+        pygame.draw.rect(win,self.color,rect)
+
+
+
+
 
 if __name__ == "__main__":
     gameMgr = GameManager()
