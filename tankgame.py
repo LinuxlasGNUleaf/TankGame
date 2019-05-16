@@ -37,7 +37,7 @@ def map(value, inMin, inMax, outMin, outMax):
     return outMin + (valueScaled * outRange)
 
 class Player():
-    def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel,border):
+    def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel,border,name):
         self.x, self.y = coords
         self.angle = 0.0
         self.step = 2
@@ -52,6 +52,7 @@ class Player():
         self.border = border
         self.slider = Slider(self,5,30,(0,100),50)
         self.HP = 100
+        self.name = name
 
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -67,36 +68,39 @@ class Player():
         if DEBUG:
             drawDebug(self.x,self.y,self.angle,win)
             
-    def move(self,keys):
-        self.bulletMgr.moveBullets()
-        x_move, y_move = returnXYforAngle(self.angle,self.vel)
+    def move(self,keys,players):
+        if self.HP > 0:
+            self.bulletMgr.moveBullets(players)
+            x_move, y_move = returnXYforAngle(self.angle,self.vel)
 
-        if keys[self.keyset[0]]: #forward
-            self.y -= y_move
-            self.x -= x_move 
-            if not(self.inBoundaries()):
-                self.y += y_move
-                self.x += x_move 
-            self.count += 0.05
-
-        elif keys[self.keyset[1]]: #backward
-            self.y += y_move
-            self.x += x_move
-            if not(self.inBoundaries()):
+            if keys[self.keyset[0]]: #forward
                 self.y -= y_move
                 self.x -= x_move 
-            self.count += 0.05
-        
-        if keys[self.keyset[2]]: #left
-            self.angle += self.step
-            self.count += 0.03
+                if not(self.inBoundaries()):
+                    self.y += y_move
+                    self.x += x_move 
+                self.count += 0.05
 
-        elif keys[self.keyset[3]]: #right
-            self.angle -= self.step
-            self.count += 0.03
-        
-        self.bulletMgr.createBullets(keys)
-        self.slider.update(self.HP)
+            elif keys[self.keyset[1]]: #backward
+                self.y += y_move
+                self.x += x_move
+                if not(self.inBoundaries()):
+                    self.y -= y_move
+                    self.x -= x_move 
+                self.count += 0.05
+            
+            if keys[self.keyset[2]]: #left
+                self.angle += self.step
+                self.count += 0.03
+
+            elif keys[self.keyset[3]]: #right
+                self.angle -= self.step
+                self.count += 0.03
+            
+            self.bulletMgr.createBullets(keys)
+            self.slider.update(self.HP)
+        else:
+            players.remove(self)
     
     def inBoundaries(self):
         if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
@@ -131,6 +135,7 @@ class BulletManager():
         self.alt = pygame.time.get_ticks()    
         self.key = trigger_key
         self.vel = vel
+        self.dmg = 20
 
     def createBullets(self,keys):
         time = pygame.time.get_ticks()
@@ -143,12 +148,15 @@ class BulletManager():
             self.bullets.append(newbullet)
             self.alt = time
         
-    def moveBullets(self):
+    def moveBullets(self,players):
         for bullet in self.bullets[::-1]:
             bullet.move()
             if bullet.x > WIDTH or bullet.x < 0 or bullet.y > HEIGHT or bullet.y < 0:
                 self.bullets.remove(bullet)
-            #TODO Add collision here!
+            for player in players:
+                if bullet.rect.colliderect(player.rect) and player != self.player:
+                    player.HP -= self.dmg
+                    self.bullets.remove(bullet)
     
     def drawBullets(self,win):
         for bullet in self.bullets:
@@ -166,18 +174,21 @@ class GameManager():
         keyset1 = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
         keyset2 = [pygame.K_UP,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RIGHT,pygame.K_RCTRL]
 
+        self.players = []
+
         tank_vel = 1
         bullet_vel = 10
         bullet_cooldown = 500
         border = 10
-        self.player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border)
-        self.player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border)
-
+        player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border,"Player Green")
+        self.players.append(player1)
+        player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border,"Player Red")
+        self.players.append(player2)
         
     def redrawGameWindow(self):
-        self.win.blit(bg,(0,0)) 
-        self.player1.draw(self.win)
-        self.player2.draw(self.win)
+        self.win.blit(bg,(0,0))
+        for player in self.players: 
+            player.draw(self.win)
         pygame.display.update()
 
 
@@ -185,15 +196,24 @@ class GameManager():
         clock = pygame.time.Clock()
         run = True
         while run:
-            clock.tick(60)
+            clock.tick(120)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     run = False
             
             keys =  pygame.key.get_pressed()
-            self.player1.move(keys)
-            self.player2.move(keys)
+
+            if len(self.players) > 1:
+                for player in self.players:
+                    player.move(keys,self.players)
+            else:
+                run = False
             self.redrawGameWindow()
+        if len(self.players) == 1:
+            txt = pygame.font.SysFont("Impact",32).render("{} won!".format(self.players[0].name),True,(255,0,0))
+            self.win.blit(txt,(WIDTH/4,HEIGHT/4))
+            pygame.display.update()
+            pygame.time.delay(2000)
 
         pygame.quit()
 
@@ -219,10 +239,6 @@ class Slider():
         rect2 = pygame.Rect(x-2,y+5,self.val+4,self.height-10)
         pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
-
-
-
-
 
 if __name__ == "__main__":
     gameMgr = GameManager()
