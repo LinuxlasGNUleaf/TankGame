@@ -256,9 +256,54 @@ class Obstacle():
 
 class ObstacleManager():
     def __init__(self,levels,spaces):
-        for level in levels:
-            if not(os.path.isfile(level)):
+        self.obstacles = []
+        self.spaces = spaces
+        self.levels = []
+
+        self.spacex = WIDTH//self.spaces
+        self.spacey = HEIGHT//self.spaces
+
+        for lvl in levels[::1]:
+            isValid = True
+            if not(os.path.isfile(lvl)):
                 open(level,'w+').close()
+
+            else:
+                lvl_file = open(lvl)
+                lines = lvl_file.readlines()
+                lvl_file.close()
+
+                if len(lines) != self.spacey:
+                    print("Error while reading "+lvl+": Err0: number of lines invalid! \nNumber of lines are "+str(len(lines))+" lines instead of "+str(self.spacey)+" !\n")
+                    isValid = False
+                else:
+                    num = 0
+                    for line in lines:
+                        num += 1
+                        line = line.replace("\n","")
+                        if len(line) != self.spacex:
+                            print("Error while reading "+lvl+": Err1: length of line "+str(num)+" invalid! \nLength of line was "+str(len(line))+" chars instead of "+str(self.spacey)+" !\n")
+                            isValid = False
+                            break
+
+            if isValid:
+                self.levels.append(lvl)
+
+        if len(self.levels) < 1:
+            print("No valid level file found! Exiting...")
+            raise SystemExit()
+                            
+        
+        self.len = len(levels)
+        self.level = levels[randint(0,self.len-1)]
+
+    def build(self):
+        level_file = open(self.level)
+        x,y = (0,0)
+        for line in level_file:
+            y+= self.spaces
+            for char in line:
+                x+= self.spaces
 
 if __name__ == "__main__":
     gameMgr = GameManager()
