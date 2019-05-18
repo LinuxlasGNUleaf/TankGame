@@ -1,5 +1,7 @@
 import pygame
 import math
+from random import randint
+import os
 
 WIDTH = 500
 HEIGHT = 500
@@ -9,6 +11,8 @@ bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
 bullet = pygame.image.load("bullet.png")
+rock = pygame.image.load("rock.png")
+levels = ["level1.lvl","level2.lvl","level3.lvl","level4.lvl"]
 
 def returnXYforAngle(angle,vel):
     rad = math.radians(angle)
@@ -164,6 +168,7 @@ class BulletManager():
 
 class GameManager():
     def __init__(self):
+        ObstMgr = ObstacleManager(levels,50)
         #window setup
         pygame.init()
         self.win = pygame.display.set_mode((WIDTH,HEIGHT))
@@ -239,6 +244,21 @@ class Slider():
         rect2 = pygame.Rect(x-2,y+5,self.val+4,self.height-10)
         pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
+
+class Obstacle():
+    def __init__(self,img,pos):
+        self.x, self.y = pos
+        self.img = pygame.transform.rotate(img,randint(0,360))
+        self.rect = self.img.get_rect()
+    
+    def draw(self,win):
+        win.blit(self.img,(self.x,self.y))
+
+class ObstacleManager():
+    def __init__(self,levels,spaces):
+        for level in levels:
+            if not(os.path.isfile(level)):
+                open(level,'w+').close()
 
 if __name__ == "__main__":
     gameMgr = GameManager()
