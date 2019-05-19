@@ -5,7 +5,7 @@ import os
 
 WIDTH = 500
 HEIGHT = 500
-DEBUG = False
+DEBUG = True
 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
@@ -49,6 +49,7 @@ class Player():
         self.vel = vel
         self.img = self.orig[0]
         self.rect = self.img.get_rect()
+        self.coll_rect = self.rect
         self.img_len = len(img)
         self.count = 0
         self.keyset = keyset
@@ -71,8 +72,9 @@ class Player():
 
         if DEBUG:
             drawDebug(self.x,self.y,self.angle,win)
+            pygame.draw.rect(win,(255,0,0),self.coll_rect,1)
             
-    def move(self,keys,players):
+    def move(self,keys,players,obstacles):
         if self.HP > 0:
             self.bulletMgr.moveBullets(players)
             x_move, y_move = returnXYforAngle(self.angle,self.vel)
@@ -80,7 +82,7 @@ class Player():
             if keys[self.keyset[0]]: #forward
                 self.y -= y_move
                 self.x -= x_move 
-                if not(self.inBoundaries()):
+                if not(self.inBoundaries(obstacles)):
                     self.y += y_move
                     self.x += x_move 
                 self.count += 0.05
@@ -88,7 +90,7 @@ class Player():
             elif keys[self.keyset[1]]: #backward
                 self.y += y_move
                 self.x += x_move
-                if not(self.inBoundaries()):
+                if not(self.inBoundaries(obstacles)):
                     self.y -= y_move
                     self.x -= x_move 
                 self.count += 0.05
@@ -106,8 +108,11 @@ class Player():
         else:
             players.remove(self)
     
-    def inBoundaries(self):
+    def inBoundaries(self,obstacles):
         if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
+            for obstacle in obstacles:
+                if self.coll_rect.colliderect(obstacle.rect):
+                    return False
             return True
         else:
             return False
@@ -168,7 +173,6 @@ class BulletManager():
 
 class GameManager():
     def __init__(self):
-        ObstMgr = ObstacleManager(levels,50)
         #window setup
         pygame.init()
         self.win = pygame.display.set_mode((WIDTH,HEIGHT))
@@ -179,21 +183,26 @@ class GameManager():
         keyset1 = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
         keyset2 = [pygame.K_UP,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RIGHT,pygame.K_RCTRL]
 
-        self.players = []
-
         tank_vel = 1
         bullet_vel = 10
         bullet_cooldown = 500
         border = 10
+
+        self.players = []
+
         player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border,"Player Green")
         self.players.append(player1)
         player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border,"Player Red")
         self.players.append(player2)
+
+        self.obstMgr = ObstacleManager(levels,50,rock)
+        self.obstMgr.build()
         
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
         for player in self.players: 
             player.draw(self.win)
+        self.obstMgr.draw(self.win)
         pygame.display.update()
 
 
@@ -210,7 +219,7 @@ class GameManager():
 
             if len(self.players) > 1:
                 for player in self.players:
-                    player.move(keys,self.players)
+                    player.move(keys,self.players,self.obstMgr.obstacles)
             else:
                 run = False
             self.redrawGameWindow()
@@ -250,12 +259,17 @@ class Obstacle():
         self.x, self.y = pos
         self.img = pygame.transform.rotate(img,randint(0,360))
         self.rect = self.img.get_rect()
+        self.rect.width /= 3
+        self.rect.height /= 3
+        self.rect.center = (self.x,self.y)
     
     def draw(self,win):
-        win.blit(self.img,(self.x,self.y))
+        win.blit(self.img,self.rect)
+        if DEBUG:
+            pygame.draw.rect(win,(0,255,255),self.rect,1)
 
 class ObstacleManager():
-    def __init__(self,levels,spaces):
+    def __init__(self,levels,spaces,obst_img):
         self.obstacles = []
         self.spaces = spaces
         self.levels = []
@@ -263,6 +277,9 @@ class ObstacleManager():
         self.spacex = WIDTH//self.spaces
         self.spacey = HEIGHT//self.spaces
 
+        self.obstImg = obst_img
+
+        #level validation
         for lvl in levels[::1]:
             isValid = True
             if not(os.path.isfile(lvl)):
@@ -289,21 +306,34 @@ class ObstacleManager():
             if isValid:
                 self.levels.append(lvl)
 
+        #checking for a valid level 
         if len(self.levels) < 1:
             print("No valid level file found! Exiting...")
-            raise SystemExit()
-                            
+            raise SystemExit()                
         
-        self.len = len(levels)
-        self.level = levels[randint(0,self.len-1)]
+
+        self.level = levels[randint(0,len(self.levels)-1)]
+        print("Level chosen: {}".format(self.level))
 
     def build(self):
         level_file = open(self.level)
         x,y = (0,0)
         for line in level_file:
             y+= self.spaces
+            x = 0
+            
             for char in line:
                 x+= self.spaces
+
+                if char == "X":
+                    self.obstacles.append(Obstacle(self.obstImg,(x,y)))                            
+        
+        for obstacle in self.obstacles:
+            print("x:{} y:{}".format(obstacle.x,obstacle.y))
+    
+    def draw(self,win):
+        for obstacle in self.obstacles:
+            obstacle.draw(win)
 
 if __name__ == "__main__":
     gameMgr = GameManager()
