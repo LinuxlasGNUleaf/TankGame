@@ -2,6 +2,7 @@ import pygame
 import math
 from random import randint
 import os
+import numpy
 
 WIDTH = 500
 HEIGHT = 500
@@ -40,6 +41,12 @@ def map(value, inMin, inMax, outMin, outMax):
 
     return outMin + (valueScaled * outRange)
 
+def normalize(v):
+    norm = numpy.linalg.norm(v)
+    if norm == 0: 
+       return v
+    return v / norm
+
 class Player():
     def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel,border,name):
         self.x, self.y = coords
@@ -50,6 +57,8 @@ class Player():
         self.img = self.orig[0]
         self.rect = self.img.get_rect()
         self.coll_rect = self.rect
+        self.coll_rect.width /= 2
+        self.coll_rect.height /= 2
         self.img_len = len(img)
         self.count = 0
         self.keyset = keyset
@@ -77,22 +86,13 @@ class Player():
     def move(self,keys,players,obstacles):
         if self.HP > 0:
             self.bulletMgr.moveBullets(players)
-            x_move, y_move = returnXYforAngle(self.angle,self.vel)
 
             if keys[self.keyset[0]]: #forward
-                self.y -= y_move
-                self.x -= x_move 
-                if not(self.inBoundaries(obstacles)):
-                    self.y += y_move
-                    self.x += x_move 
+                self.moveIfNoCollision("forward",obstacles)
                 self.count += 0.05
 
             elif keys[self.keyset[1]]: #backward
-                self.y += y_move
-                self.x += x_move
-                if not(self.inBoundaries(obstacles)):
-                    self.y -= y_move
-                    self.x -= x_move 
+                self.moveIfNoCollision("backward",obstacles)
                 self.count += 0.05
             
             if keys[self.keyset[2]]: #left
@@ -105,17 +105,48 @@ class Player():
             
             self.bulletMgr.createBullets(keys)
             self.slider.update(self.HP)
+            self.updateCollideRect()
         else:
             players.remove(self)
     
-    def inBoundaries(self,obstacles):
+    def updateCollideRect(self):
+        self.coll_rect.center = (self.x,self.y)
+    
+    def onScreen(self):
         if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
-            for obstacle in obstacles:
-                if self.coll_rect.colliderect(obstacle.rect):
-                    return False
             return True
-        else:
-            return False
+        return False
+    
+    def moveIfNoCollision(self,direction,obstacles):
+        x_move, y_move = returnXYforAngle(self.angle,self.vel)
+        if direction == "forward":
+            self.y -= y_move
+            self.x -= x_move 
+            if self.onScreen():
+                self.undoObstacleCollision(obstacles)
+            else:
+                self.y += y_move
+                self.x += x_move
+
+        elif direction == "backward":
+            self.y += y_move
+            self.x += x_move
+            if self.onScreen():
+                self.undoObstacleCollision(obstacles)
+            else:
+                self.y -= y_move
+                self.x -= x_move
+    
+    def undoObstacleCollision(self,obstacles):
+        colliding = []
+        for obstacle in obstacles:
+            if self.coll_rect.colliderect(obstacle.rect):
+                colliding.append(obstacle)
+        
+        for obstacle in colliding:
+            diff = numpy.multiply(numpy.subtract((obstacle.rect.center),(self.coll_rect.center)),-1)
+            diff = normalize(diff)
+            self.x,self.y = numpy.add((diff),(self.x,self.y))
 
 class Bullet():
     def __init__(self,angle,vel,coords,img):
@@ -326,10 +357,7 @@ class ObstacleManager():
                 x+= self.spaces
 
                 if char == "X":
-                    self.obstacles.append(Obstacle(self.obstImg,(x,y)))                            
-        
-        for obstacle in self.obstacles:
-            print("x:{} y:{}".format(obstacle.x,obstacle.y))
+                    self.obstacles.append(Obstacle(self.obstImg,(x,y)))
     
     def draw(self,win):
         for obstacle in self.obstacles:
