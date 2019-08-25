@@ -4,9 +4,9 @@
 This is a pygame-project on Python 3.6, using the libraries **pygame**, math, random, os and numpy.
 The goal of this project is to create a small tank game where you control a Tank and fight against an AI opponent.
 
-##Development
+## Development
 
-###Completed
+### Completed
 - pygame setup, background setup ✓
 - control of the movement of the player tank ✓
 - collision with the borders ✓
@@ -15,7 +15,7 @@ The goal of this project is to create a small tank game where you control a Tank
 - shell creation, hitboxes for the tanks, slider for health ✓
 - game management, end screen ✓
 
-###WIP
+### WIP
 - AI (not yet started)
 
 ### Todo
