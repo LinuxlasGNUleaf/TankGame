@@ -4,9 +4,12 @@ from random import randint
 import os
 import numpy
 
+#CONFIGURATION
+
 WIDTH = 500
 HEIGHT = 500
-DEBUG = False
+DEBUG = True
+ShellCollide = True
 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
@@ -84,7 +87,7 @@ class Player():
             
     def move(self,keys,players,obstacles):
         if self.HP > 0:
-            self.bulletMgr.moveBullets(players)
+            self.bulletMgr.moveBullets(players,obstacles)
 
             if keys[self.keyset[0]]: #forward
                 self.moveIfNoCollision("forward",obstacles)
@@ -155,6 +158,9 @@ class Bullet():
         self.img = img
         self.x, self.y = coords
         self.rect = self.orig.get_rect()
+        self.rect.width /= 2
+        self.rect.height /= 2
+        self.rect.center = self.orig.get_rect().center
     
     def move(self):
         x_move, y_move = returnXYforAngle(self.angle,self.vel)
@@ -165,6 +171,8 @@ class Bullet():
         self.img = pygame.transform.rotate(self.orig,self.angle)
         self.rect.center = (self.x,self.y)
         win.blit(self.img,self.rect)
+        if DEBUG:
+            pygame.draw.rect(win,(255,0,255),self.rect,1)
 
 class BulletManager():
     def __init__(self,player,cooldown,trigger_key,vel):
@@ -187,15 +195,33 @@ class BulletManager():
             self.bullets.append(newbullet)
             self.alt = time
         
-    def moveBullets(self,players):
+    def moveBullets(self,players,obstacles):
         for bullet in self.bullets[::-1]:
+            existing = True
             bullet.move()
             if bullet.x > WIDTH or bullet.x < 0 or bullet.y > HEIGHT or bullet.y < 0:
                 self.bullets.remove(bullet)
+                existing = False
+
+            if not(existing):
+                continue
+            
             for player in players:
                 if bullet.rect.colliderect(player.rect) and player != self.player:
                     player.HP -= self.dmg
                     self.bullets.remove(bullet)
+                    existing = False
+            
+            if not(existing):
+                continue
+
+            if ShellCollide:
+                for obstacle in obstacles:
+                    if bullet.rect.colliderect(obstacle.shell_rect):
+                        self.bullets.remove(bullet)
+                        existing = False
+                        break
+
     
     def drawBullets(self,win):
         for bullet in self.bullets:
@@ -287,13 +313,18 @@ class Slider():
 class Obstacle():
     def __init__(self,img,rect):
         self.coll_rect = rect
+        self.shell_rect = pygame.Rect(rect.x,rect.y,rect.width,rect.height)
         self.img = pygame.transform.rotate(img,randint(0,360))
         self.img_rect = pygame.Rect(rect.x-rect.width//3,rect.y-rect.height//3,rect.width,rect.height)
+        self.shell_rect.width /= 2
+        self.shell_rect.height /= 2
+        self.shell_rect.center = self.coll_rect.center
 
     def draw(self,win):
         win.blit(self.img,self.img_rect)
         if DEBUG:
             pygame.draw.rect(win,(0,255,255),self.coll_rect,1)
+            pygame.draw.rect(win,(255,0,255),self.shell_rect,1)
 
 class ObstacleManager():
     def __init__(self,spaces,obst_img):
@@ -350,14 +381,12 @@ class ObstacleManager():
         level_file = open(self.level)
         x,y = (0,0)
         for line in level_file:
-            y+= self.spaces
             x = 0
-            
             for char in line:
-                x+= self.spaces
-
                 if char == "X":
                     self.obstacles.append(Obstacle(self.obstImg,pygame.Rect(x,y,self.spaces,self.spaces)))
+                x+= self.spaces
+            y+= self.spaces
     
     def draw(self,win):
         for obstacle in self.obstacles:
