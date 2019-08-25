@@ -6,7 +6,7 @@ import numpy
 
 WIDTH = 500
 HEIGHT = 500
-DEBUG = True
+DEBUG = False
 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
@@ -139,11 +139,11 @@ class Player():
     def undoObstacleCollision(self,obstacles):
         colliding = []
         for obstacle in obstacles:
-            if self.coll_rect.colliderect(obstacle.rect):
+            if self.coll_rect.colliderect(obstacle.coll_rect):
                 colliding.append(obstacle)
         
         for obstacle in colliding:
-            diff = numpy.multiply(numpy.subtract((obstacle.rect.center),(self.coll_rect.center)),-1)
+            diff = numpy.multiply(numpy.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
             diff = normalize(diff)
             self.x,self.y = numpy.add((diff),(self.x,self.y))
 
@@ -285,18 +285,15 @@ class Slider():
         pygame.draw.rect(win,self.color,rect)
 
 class Obstacle():
-    def __init__(self,img,pos):
-        self.x, self.y = pos
+    def __init__(self,img,rect):
+        self.coll_rect = rect
         self.img = pygame.transform.rotate(img,randint(0,360))
-        self.rect = self.img.get_rect()
-        self.rect.width /= 3
-        self.rect.height /= 3
-        self.rect.center = (self.x,self.y)
-    
+        self.img_rect = pygame.Rect(rect.x-rect.width//3,rect.y-rect.height//3,rect.width,rect.height)
+
     def draw(self,win):
-        win.blit(self.img,self.rect)
+        win.blit(self.img,self.img_rect)
         if DEBUG:
-            pygame.draw.rect(win,(0,255,255),self.rect,1)
+            pygame.draw.rect(win,(0,255,255),self.coll_rect,1)
 
 class ObstacleManager():
     def __init__(self,spaces,obst_img):
@@ -309,6 +306,7 @@ class ObstacleManager():
 
         self.obstImg = obst_img
 
+        #get all .lvl files
         for _,_,f in os.walk("../"):
             for file in f:
                 if file.endswith(".lvl"):
@@ -359,7 +357,7 @@ class ObstacleManager():
                 x+= self.spaces
 
                 if char == "X":
-                    self.obstacles.append(Obstacle(self.obstImg,(x,y)))
+                    self.obstacles.append(Obstacle(self.obstImg,pygame.Rect(x,y,self.spaces,self.spaces)))
     
     def draw(self,win):
         for obstacle in self.obstacles:
