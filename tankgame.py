@@ -55,6 +55,14 @@ def normalize(v):
        return v
     return v / norm
 
+class Representer():
+    def __init__(self,obj,hitbox):
+        self.obj = obj
+        self.hitbox = hitbox
+    
+    def update(self):
+        self.hitbox = self.obj.coll_rect
+
 class Sprite:
     def __init__(self,img,coords):
         self.img = img
@@ -78,21 +86,20 @@ class Tank():
         self.step = 2
         self.img = self.orig[0]
         self.coll_rect = self.img.get_rect().inflate(-2,-2)
-        # self.coll_rect.width /= 2
-        # self.coll_rect.height /= 2
         self.img_len = len(imgset)
         self.count = 0
         self.HP = 100
         self.name = name
-        #self.border = border
         self.slider = Slider(self,5,30,(0,100),50)
+        self.slider.update(self.HP)
+        self.rep = Representer(self,self.coll_rect)
     
     def draw(self,win):
         num = int(self.count)%self.img_len
         self.img = pygame.transform.rotate(self.orig[num],self.angle)
 
-        self.rect = self.img.get_rect()  # Replace old rect with new rect.
-        self.rect.center = (self.x, self.y)  # Put the new rect's center at old center.
+        self.rect = self.img.get_rect()
+        self.rect.center = (self.x, self.y)
 
         win.blit(self.img,self.rect)
         self.slider.draw(win)
@@ -124,18 +131,26 @@ class Player(Tank):
         self.keyset = keyset
         self.bulletMgr = BulletManager(self,self.keyset[4])
             
-    def move(self,keys,players,obstacles):
+    def move(self,keys,tanks,obstacles):
         if self.HP > 0:
-            self.bulletMgr.moveBullets(players,obstacles)
+            self.bulletMgr.moveBullets(tanks,obstacles)
 
-            if keys[self.keyset[0]]: #forward
-                self.moveIfNoCollision("forward",obstacles)
-                self.count += 0.05
+            if keys[self.keyset[0]] or keys[self.keyset[1]]:  #moving
+                oldpos = (self.x,self.y)
+                x_move, y_move = returnXYforAngle(self.angle,TANK_VEL)
+                if keys[self.keyset[0]]:
+                    self.y -= y_move
+                    self.x -= x_move 
+                    self.count += 0.05
+                elif keys[self.keyset[1]]:
+                    self.y += y_move
+                    self.x += x_move
+                    self.count += 0.05
+                if self.onScreen():
+                    self.undoObstacleCollision(obstacles)
+                else:
+                    self.x,self.y = oldpos 
 
-            elif keys[self.keyset[1]]: #backward
-                self.moveIfNoCollision("backward",obstacles)
-                self.count += 0.05
-            
             if keys[self.keyset[2]]: #left
                 self.angle += self.step
                 self.count += 0.03
@@ -148,27 +163,7 @@ class Player(Tank):
             self.slider.update(self.HP)
             self.updateCollideRect()
         else:
-            players.remove(self)
-    
-    def moveIfNoCollision(self,direction,obstacles):
-        x_move, y_move = returnXYforAngle(self.angle,TANK_VEL)
-        if direction == "forward":
-            self.y -= y_move
-            self.x -= x_move 
-            if self.onScreen():
-                self.undoObstacleCollision(obstacles)
-            else:
-                self.y += y_move
-                self.x += x_move
-
-        elif direction == "backward":
-            self.y += y_move
-            self.x += x_move
-            if self.onScreen():
-                self.undoObstacleCollision(obstacles)
-            else:
-                self.y -= y_move
-                self.x -= x_move
+            tanks.remove(self)
     
     def draw(self,win):
         self.bulletMgr.drawBullets(win)
@@ -255,20 +250,20 @@ class GameManager():
 
         #player instanciation
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
-        self.tanks = []
 
-        player = Player(tank1,(400,400),"Player",keyset)
-        self.tanks.append(player)
-        ai = AI(tank2,(100,100),"AI")
-        self.tanks.append(AI)
+        self.tanks = []
+        self.player = Player(tank1,(400,400),"Player",keyset)
+        self.tanks.append(self.player.rep)
+        self.ai = AI(tank2,(100,100),"AI")
+        self.tanks.append(self.ai.rep)
 
         self.obstMgr = ObstacleManager(50,rock)
         self.obstMgr.build()
         
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
-        for player in self.tanks: 
-            player.draw(self.win)
+        self.player.draw(self.win)
+        self.ai.draw(self.win)
         self.obstMgr.draw(self.win)
         pygame.display.update()
 
@@ -284,17 +279,9 @@ class GameManager():
             
             keys =  pygame.key.get_pressed()
 
-            if len(self.tanks) > 1:
-                for player in self.tanks:
-                    player.move(keys,self.tanks,self.obstMgr.obstacles)
-            else:
-                run = False
+            self.player.move(keys,self.tanks,self.obstMgr.obstacles)
+            self.ai.move
             self.redrawGameWindow()
-        if len(self.players) == 1:
-            txt = pygame.font.SysFont("Impact",32).render("{} won!".format(self.players[0].name),True,(255,0,0))
-            self.win.blit(txt,(WIDTH/4,HEIGHT/4))
-            pygame.display.update()
-            pygame.time.delay(2000)
 
         pygame.quit()
 
@@ -305,6 +292,7 @@ class Slider():
         self.max_width = max_width
         self.in_min, self.in_max = in_range
         self.gap = gap
+        self.val = self.in_max
     
     def update(self,input):
         self.val = map(input,self.in_min,self.in_max,0,self.max_width)
