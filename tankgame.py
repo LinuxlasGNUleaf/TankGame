@@ -21,6 +21,8 @@ tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
 bullet = pygame.image.load("bullet.png")
 rock = pygame.image.load("rock.png")
 
+SCREEN = pygame.Rect(0,0,WIDTH,HEIGHT)
+
 def returnXYforAngle(angle,vel):
     rad = math.radians(angle)
     x = math.sin(rad)
@@ -53,7 +55,6 @@ def normalize(v):
        return v
     return v / norm
 
-
 class Sprite:
     def __init__(self,img,coords):
         self.img = img
@@ -70,22 +71,20 @@ class Sprite:
             pygame.draw.rect(win,(255,0,255),self.rect,1)
 
 class Tank():
-    def __init__(self,imgset,coords,vel,name):
+    def __init__(self,imgset,coords,name):
         self.x, self.y = coords
         self.angle = 0.0
         self.orig = imgset
         self.step = 2
-        self.vel = vel
         self.img = self.orig[0]
-        self.coll_rect = self.img.get_rect()
-        self.coll_rect.width /= 2
-        self.coll_rect.height /= 2
-        self.img_len = len(img)
+        self.coll_rect = self.img.get_rect().inflate(-2,-2)
+        # self.coll_rect.width /= 2
+        # self.coll_rect.height /= 2
+        self.img_len = len(imgset)
         self.count = 0
         self.HP = 100
         self.name = name
-        self.border = border
-        self.bulletMgr = BulletManager(self,bullet_cooldown,self.keyset[4],bullet_vel)
+        #self.border = border
         self.slider = Slider(self,5,30,(0,100),50)
     
     def draw(self,win):
@@ -95,7 +94,6 @@ class Tank():
         self.rect = self.img.get_rect()  # Replace old rect with new rect.
         self.rect.center = (self.x, self.y)  # Put the new rect's center at old center.
 
-        self.bulletMgr.drawBullets(win)
         win.blit(self.img,self.rect)
         self.slider.draw(win)
 
@@ -118,14 +116,13 @@ class Tank():
             self.x,self.y = numpy.add((diff),(self.x,self.y))
        
     def onScreen(self):
-        if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
-            return True
-        return False
+        return SCREEN.contains(self.coll_rect)
 
 class Player(Tank):
-    def __init__(self,imgset,coords,vel,name,keyset,bullet_cooldown,bullet_vel,border,name):
-        super().__init__(self,imgset,coords,vel,name)
+    def __init__(self,imgset,coords,name,keyset):
+        super().__init__(imgset,coords,name)
         self.keyset = keyset
+        self.bulletMgr = BulletManager(self,self.keyset[4])
             
     def move(self,keys,players,obstacles):
         if self.HP > 0:
@@ -154,7 +151,7 @@ class Player(Tank):
             players.remove(self)
     
     def moveIfNoCollision(self,direction,obstacles):
-        x_move, y_move = returnXYforAngle(self.angle,self.vel)
+        x_move, y_move = returnXYforAngle(self.angle,TANK_VEL)
         if direction == "forward":
             self.y -= y_move
             self.x -= x_move 
@@ -173,42 +170,46 @@ class Player(Tank):
                 self.y -= y_move
                 self.x -= x_move
     
+    def draw(self,win):
+        self.bulletMgr.drawBullets(win)
+        super().draw(win)
+    
 class AI(Tank):
-    def __init__(self,imgset,coords,vel,name):
-        super().__init__(imgset,coords,vel,name)
+    def __init__(self,imgset,coords,name):
+        super().__init__(imgset,coords,name)
+
+    def move(self,keys,tanks,obstacles):
+        pass
 
 class Bullet(Sprite):
-    def __init__(self,angle,vel,coords,img):
+    def __init__(self,angle,coords,img):
         super().__init__(img,coords)
-        self.vel = vel
         self.angle = angle
         self.rect.width /= 2
         self.rect.height /= 2
         self.rect.center = self.orig.get_rect().center
     
     def move(self):
-        x_move, y_move = returnXYforAngle(self.angle,self.vel)
+        x_move, y_move = returnXYforAngle(self.angle,BULLET_VEL)
         self.x -= x_move
         self.y -= y_move
         
 class BulletManager():
-    def __init__(self,player,cooldown,trigger_key,vel):
+    def __init__(self,player,trigger_key):
         self.player = player
         self.bullets = []
-        self.cooldown = cooldown
         self.alt = pygame.time.get_ticks()    
         self.key = trigger_key
-        self.vel = vel
         self.dmg = 20
 
     def createBullets(self,keys):
         time = pygame.time.get_ticks()
-        if keys[self.key] and time-self.cooldown > self.alt:
+        if keys[self.key] and time-BULLET_COOLDOWN > self.alt:
             angle = self.player.angle
             x_diff, y_diff = returnXYforAngle(angle,-45)
             x = self.player.x + x_diff
             y = self.player.y + y_diff
-            newbullet = Bullet(angle,self.vel,(x,y),bullet)
+            newbullet = Bullet(angle,(x,y),bullet)
             self.bullets.append(newbullet)
             self.alt = time
         
@@ -253,13 +254,12 @@ class GameManager():
         pygame.display.set_icon(tank1[0])
 
         #player instanciation
-        keyset1 = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
-
+        keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
         self.tanks = []
 
-        player = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border,"Player Green")
+        player = Player(tank1,(400,400),"Player",keyset)
         self.tanks.append(player)
-        ai = AI((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border,"Player Red")
+        ai = AI(tank2,(100,100),"AI")
         self.tanks.append(AI)
 
         self.obstMgr = ObstacleManager(50,rock)
@@ -267,7 +267,7 @@ class GameManager():
         
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
-        for player in self.players: 
+        for player in self.tanks: 
             player.draw(self.win)
         self.obstMgr.draw(self.win)
         pygame.display.update()
@@ -284,9 +284,9 @@ class GameManager():
             
             keys =  pygame.key.get_pressed()
 
-            if len(self.players) > 1:
-                for player in self.players:
-                    player.move(keys,self.players,self.obstMgr.obstacles)
+            if len(self.tanks) > 1:
+                for player in self.tanks:
+                    player.move(keys,self.tanks,self.obstMgr.obstacles)
             else:
                 run = False
             self.redrawGameWindow()
@@ -321,15 +321,16 @@ class Slider():
         pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
 
-class Obstacle():
+class Obstacle(Sprite):
     def __init__(self,img,rect):
         self.coll_rect = rect
         self.shell_rect = pygame.Rect(rect.x,rect.y,rect.width,rect.height)
         self.img = pygame.transform.rotate(img,randint(0,360))
         self.img_rect = pygame.Rect(rect.x-rect.width//3,rect.y-rect.height//3,rect.width,rect.height)
-        self.shell_rect.width /= 2
-        self.shell_rect.height /= 2
-        self.shell_rect.center = self.coll_rect.center
+        # self.shell_rect.width /= 2
+        # self.shell_rect.height /= 2
+        # self.shell_rect.center = self.coll_rect.center
+        self.shell_rect = self.shell_rect.inflate(-2,-2)
 
     def draw(self,win):
         win.blit(self.img,self.img_rect)
