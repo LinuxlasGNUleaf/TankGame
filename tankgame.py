@@ -66,7 +66,7 @@ class Representer():
 class Sprite:
     def __init__(self,img,coords):
         self.img = img
-        self.x,self.y = self.coords
+        self.x,self.y = coords
         self.orig  = img
         self.angle = 0.0
         self.rect = self.orig.get_rect()
@@ -74,7 +74,7 @@ class Sprite:
     def draw(self,win):
         self.img = pygame.transform.rotate(self.orig,self.angle)
         self.rect.center = (self.x,self.y)
-        win.blit(self.img)
+        win.blit(self.img,(self.x,self.y))
         if DEBUG:
             pygame.draw.rect(win,(255,0,255),self.rect,1)
 
@@ -85,7 +85,10 @@ class Tank():
         self.orig = imgset
         self.step = 2
         self.img = self.orig[0]
-        self.coll_rect = self.img.get_rect().inflate(-2,-2)
+        self.coll_rect = self.img.get_rect()
+        self.coll_rect.width /= 2
+        self.coll_rect.height /= 2
+        self.coll_rect.center = self.img.get_rect().center
         self.img_len = len(imgset)
         self.count = 0
         self.HP = 100
@@ -208,7 +211,7 @@ class BulletManager():
             self.bullets.append(newbullet)
             self.alt = time
         
-    def moveBullets(self,players,obstacles):
+    def moveBullets(self,reps,obstacles):
         for bullet in self.bullets[::-1]:
             existing = True
             bullet.move()
@@ -219,9 +222,10 @@ class BulletManager():
             if not(existing):
                 continue
             
-            for player in players:
-                if bullet.rect.colliderect(player.rect) and player != self.player:
-                    player.HP -= self.dmg
+            for rep in reps:
+                tank = rep.obj
+                if bullet.rect.colliderect(rep.hitbox) and tank != self.player:
+                    tank.HP -= self.dmg
                     self.bullets.remove(bullet)
                     existing = False
             
@@ -315,10 +319,9 @@ class Obstacle(Sprite):
         self.shell_rect = pygame.Rect(rect.x,rect.y,rect.width,rect.height)
         self.img = pygame.transform.rotate(img,randint(0,360))
         self.img_rect = pygame.Rect(rect.x-rect.width//3,rect.y-rect.height//3,rect.width,rect.height)
-        # self.shell_rect.width /= 2
-        # self.shell_rect.height /= 2
-        # self.shell_rect.center = self.coll_rect.center
-        self.shell_rect = self.shell_rect.inflate(-2,-2)
+        self.shell_rect.width /= 2
+        self.shell_rect.height /= 2
+        self.shell_rect.center = self.coll_rect.center
 
     def draw(self,win):
         win.blit(self.img,self.img_rect)
