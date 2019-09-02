@@ -4,12 +4,16 @@ from random import randint
 import os
 import numpy
 
-#CONFIGURATION
-
+#========CONFIGURATION========
 WIDTH = 500
 HEIGHT = 500
 DEBUG = True
 ShellCollide = True
+BULLET_COOLDOWN = 500
+TANK_VEL = 1
+BULLET_VEL = 10
+BORDER = 10
+#=============================
 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
@@ -49,27 +53,41 @@ def normalize(v):
        return v
     return v / norm
 
-class Player():
-    def __init__(self,coords,vel,img,keyset,bullet_cooldown,bullet_vel,border,name):
+
+class Sprite:
+    def __init__(self,img,coords):
+        self.img = img
+        self.x,self.y = self.coords
+        self.orig  = img
+        self.angle = 0.0
+        self.rect = self.orig.get_rect()
+    
+    def draw(self,win):
+        self.img = pygame.transform.rotate(self.orig,self.angle)
+        self.rect.center = (self.x,self.y)
+        win.blit(self.img)
+        if DEBUG:
+            pygame.draw.rect(win,(255,0,255),self.rect,1)
+
+class Tank():
+    def __init__(self,imgset,coords,vel,name):
         self.x, self.y = coords
         self.angle = 0.0
+        self.orig = imgset
         self.step = 2
-        self.orig = img
         self.vel = vel
         self.img = self.orig[0]
-        self.rect = self.img.get_rect()
-        self.coll_rect = self.rect
+        self.coll_rect = self.img.get_rect()
         self.coll_rect.width /= 2
         self.coll_rect.height /= 2
         self.img_len = len(img)
         self.count = 0
-        self.keyset = keyset
-        self.bulletMgr = BulletManager(self,bullet_cooldown,self.keyset[4],bullet_vel)
-        self.border = border
-        self.slider = Slider(self,5,30,(0,100),50)
         self.HP = 100
         self.name = name
-
+        self.border = border
+        self.bulletMgr = BulletManager(self,bullet_cooldown,self.keyset[4],bullet_vel)
+        self.slider = Slider(self,5,30,(0,100),50)
+    
     def draw(self,win):
         num = int(self.count)%self.img_len
         self.img = pygame.transform.rotate(self.orig[num],self.angle)
@@ -84,6 +102,30 @@ class Player():
         if DEBUG:
             drawDebug(self.x,self.y,self.angle,win)
             pygame.draw.rect(win,(255,0,0),self.coll_rect,1)
+    
+    def updateCollideRect(self):
+        self.coll_rect.center = (self.x,self.y)
+    
+    def undoObstacleCollision(self,obstacles):
+        colliding = []
+        for obstacle in obstacles:
+            if self.coll_rect.colliderect(obstacle.coll_rect):
+                colliding.append(obstacle)
+        
+        for obstacle in colliding:
+            diff = numpy.multiply(numpy.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
+            diff = normalize(diff)
+            self.x,self.y = numpy.add((diff),(self.x,self.y))
+       
+    def onScreen(self):
+        if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
+            return True
+        return False
+
+class Player(Tank):
+    def __init__(self,imgset,coords,vel,name,keyset,bullet_cooldown,bullet_vel,border,name):
+        super().__init__(self,imgset,coords,vel,name)
+        self.keyset = keyset
             
     def move(self,keys,players,obstacles):
         if self.HP > 0:
@@ -111,14 +153,6 @@ class Player():
         else:
             players.remove(self)
     
-    def updateCollideRect(self):
-        self.coll_rect.center = (self.x,self.y)
-    
-    def onScreen(self):
-        if self.x > self.border and self.x < WIDTH-self.border and self.y > self.border and self.y < HEIGHT-self.border:
-            return True
-        return False
-    
     def moveIfNoCollision(self,direction,obstacles):
         x_move, y_move = returnXYforAngle(self.angle,self.vel)
         if direction == "forward":
@@ -139,25 +173,15 @@ class Player():
                 self.y -= y_move
                 self.x -= x_move
     
-    def undoObstacleCollision(self,obstacles):
-        colliding = []
-        for obstacle in obstacles:
-            if self.coll_rect.colliderect(obstacle.coll_rect):
-                colliding.append(obstacle)
-        
-        for obstacle in colliding:
-            diff = numpy.multiply(numpy.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
-            diff = normalize(diff)
-            self.x,self.y = numpy.add((diff),(self.x,self.y))
+class AI(Tank):
+    def __init__(self,imgset,coords,vel,name):
+        super().__init__(imgset,coords,vel,name)
 
-class Bullet():
+class Bullet(Sprite):
     def __init__(self,angle,vel,coords,img):
-        self.angle = angle
+        super().__init__(img,coords)
         self.vel = vel
-        self.orig = img
-        self.img = img
-        self.x, self.y = coords
-        self.rect = self.orig.get_rect()
+        self.angle = angle
         self.rect.width /= 2
         self.rect.height /= 2
         self.rect.center = self.orig.get_rect().center
@@ -166,14 +190,7 @@ class Bullet():
         x_move, y_move = returnXYforAngle(self.angle,self.vel)
         self.x -= x_move
         self.y -= y_move
-    
-    def draw(self,win):
-        self.img = pygame.transform.rotate(self.orig,self.angle)
-        self.rect.center = (self.x,self.y)
-        win.blit(self.img,self.rect)
-        if DEBUG:
-            pygame.draw.rect(win,(255,0,255),self.rect,1)
-
+        
 class BulletManager():
     def __init__(self,player,cooldown,trigger_key,vel):
         self.player = player
@@ -237,19 +254,13 @@ class GameManager():
 
         #player instanciation
         keyset1 = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
-        keyset2 = [pygame.K_UP,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RIGHT,pygame.K_RCTRL]
 
-        tank_vel = 1
-        bullet_vel = 10
-        bullet_cooldown = 500
-        border = 10
+        self.tanks = []
 
-        self.players = []
-
-        player1 = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border,"Player Green")
-        self.players.append(player1)
-        player2 = Player((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border,"Player Red")
-        self.players.append(player2)
+        player = Player((WIDTH-100,HEIGHT-100),tank_vel,tank1,keyset1,bullet_cooldown,bullet_vel,border,"Player Green")
+        self.tanks.append(player)
+        ai = AI((100,100),tank_vel,tank2,keyset2,bullet_cooldown,bullet_vel,border,"Player Red")
+        self.tanks.append(AI)
 
         self.obstMgr = ObstacleManager(50,rock)
         self.obstMgr.build()
