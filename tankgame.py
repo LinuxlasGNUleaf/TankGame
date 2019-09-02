@@ -177,7 +177,8 @@ class AI(Tank):
         super().__init__(imgset,coords,name)
 
     def move(self,keys,tanks,obstacles):
-        pass
+        self.slider.update(self.HP)
+        self.updateCollideRect()
 
 class Bullet(Sprite):
     def __init__(self,angle,coords,img):
