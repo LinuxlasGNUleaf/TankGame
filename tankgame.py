@@ -7,22 +7,23 @@ import numpy as np
 #========CONFIGURATION========
 WIDTH = 500
 HEIGHT = 500
-MIDDLEPOINT = np.array([WIDTH//2,HEIGHT//2])
 DEBUG = True
 ShellCollide = True
 BULLET_COOLDOWN = 500
 TANK_VEL = 1
 BULLET_VEL = 5
 BORDER = 10
+SIZE_X = 10
+SIZE_Y = 10
 #=============================
+sizes = np.array([SIZE_X,SIZE_Y])
+SCREEN = np.array([WIDTH,HEIGHT])
 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
 bullet = pygame.image.load("bullet.png")
 rock = pygame.image.load("rock.png")
-
-SCREEN = pygame.Rect(0,0,WIDTH,HEIGHT)
 
 def returnXYforAngle(angle,vel):
     rad = math.radians(angle)
@@ -94,7 +95,7 @@ class Tank():
         self.count = 0
         self.HP = 100
         self.name = name
-        self.slider = Slider(self,5,30,(0,100),50)
+        self.slider = Slider(self,5,30,(0,100),40)
         self.slider.update(self.HP)
         self.rep = Representer(self,self.coll_rect)
         self.border = self.coll_rect.width//2
@@ -128,7 +129,6 @@ class Tank():
             self.pos = np.add(diff,self.pos)
         self.pos[0] = max(min(self.pos[0],WIDTH-self.border),0+self.border)
         self.pos[1] = max(min(self.pos[1],HEIGHT-self.border),0+self.border)
-
 
 class Player(Tank):
     def __init__(self,imgset,coords,name,keyset):
@@ -254,7 +254,7 @@ class GameManager():
         self.ai = AI(tank2,(100,100),"AI")
         self.tanks.append(self.ai.rep)
 
-        self.obstMgr = ObstacleManager(50,rock)
+        self.obstMgr = ObstacleManager(sizes,rock)
         self.obstMgr.build()
         
     def redrawGameWindow(self):
@@ -308,31 +308,32 @@ class Slider():
         pygame.draw.rect(win,self.color,rect)
 
 class Obstacle(Sprite):
-    def __init__(self,img,rect):
-        self.coll_rect = rect
-        self.shell_rect = pygame.Rect(rect.x,rect.y,rect.width,rect.height)
-        self.img = pygame.transform.rotate(img,randint(0,360))
-        self.img_rect = pygame.Rect(rect.x-rect.width//3,rect.y-rect.height//3,rect.width,rect.height)
+    def __init__(self,img,pos,sizes):
+        print("Input: x:{} y:{} width:{} height:{}".format(pos[0],pos[1],sizes[0],sizes[1]))
+        self.coll_rect = pygame.Rect(pos[0],pos[1],sizes[0],sizes[1])
+        self.shell_rect = self.coll_rect.copy()
+        self.img = pygame.transform.rotate(img,randint(0,359))
+        self.img_pos = np.subtract(pos,np.divide(sizes,3))
         self.shell_rect.width /= 2
         self.shell_rect.height /= 2
         self.shell_rect.center = self.coll_rect.center
 
     def draw(self,win):
-        win.blit(self.img,self.img_rect)
+        win.blit(self.img,self.img_pos)
         if DEBUG:
             pygame.draw.rect(win,(0,255,255),self.coll_rect,1)
             pygame.draw.rect(win,(255,0,255),self.shell_rect,1)
 
 class ObstacleManager():
-    def __init__(self,spaces,obst_img):
+    def __init__(self,sizes,obst_img):
         self.obstacles = []
-        self.spaces = spaces
         self.levels = []
-
-        self.spacex = WIDTH//self.spaces
-        self.spacey = HEIGHT//self.spaces
-
+        self.sizes = sizes 
+        self.gaps = np.divide(SCREEN,sizes).astype("int32")
+        print("sizes:"+str(self.sizes))
+        print("gaps:"+str(self.gaps))
         self.obstImg = obst_img
+        self.repMatrix = np.zeros((self.sizes[0],self.sizes[1],4))
 
         #get all .lvl files
         for _,_,f in os.walk("../"):
@@ -345,23 +346,21 @@ class ObstacleManager():
         for lvl in self.levels[::1]:
             Valid = True
 
+            #retrieving level data
             lvl_file = open(lvl)
             lines = lvl_file.readlines()
             lvl_file.close()
 
-            if len(lines) != self.spacey:
-                print("Error while reading "+lvl+": Err0: number of lines invalid! \nNumber of lines are "+str(len(lines))+" lines instead of "+str(self.spacey)+" !\n")
+            if len(lines) != self.sizes[1]: #number of lines not matching
+                print("Error 0 while reading {}: Err0: number of lines invalid! \Found {} lines instead of {}!\n".format(lvl,len(lines),self.sizes[1]))
                 isValid = False
             else:
-                num = 0
                 for line in lines:
-                    num += 1
                     line = line.replace("\n","")
-                    if len(line) != self.spacex:
-                        print("Error while reading "+lvl+": Err1: length of line "+str(num)+" invalid! \nLength of line was "+str(len(line))+" chars instead of "+str(self.spacey)+" !\n")
+                    if len(line) != self.sizes[0]: #number of columns not matching
+                        print("Error 1 while reading {}: Err1: length of line {} invalid! \nLength of line was {} chars instead of {} !\n".format(lvl,lines.index(line)+"\n",len(line),self.sizes[1]))
                         isValid = False
-                        break
-
+        
             if not(Valid):
                 self.levels[::1].remove(lvl)
 
@@ -376,14 +375,14 @@ class ObstacleManager():
 
     def build(self):
         level_file = open(self.level)
-        x,y = (0,0)
+        pos = np.zeros(2,dtype=int)
         for line in level_file:
-            x = 0
+            pos[0] = 0
             for char in line:
                 if char == "X":
-                    self.obstacles.append(Obstacle(self.obstImg,pygame.Rect(x,y,self.spaces,self.spaces)))
-                x+= self.spaces
-            y+= self.spaces
+                    self.obstacles.append(Obstacle(self.obstImg,pos,self.gaps))
+                pos[0] += self.gaps[0]
+            pos[1]+= self.gaps[1]
     
     def draw(self,win):
         for obstacle in self.obstacles:
