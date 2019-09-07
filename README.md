@@ -14,12 +14,13 @@ The goal of this project is to create a small tank game where you control a Tank
 - collision with the obstacles, fixed glitching through the obstacles ✓
 - shell creation, hitboxes for the tanks, slider for health ✓
 - game management, end screen ✓
+- numpy arrays / matrices for better performance ✓
+- subclassing Tank -> Player, Tank -> AI, Sprite -> Bullet and Sprite -> Obstacle to clean up the code ✓
 
 ### WIP
-- AI (not yet started)
+- AI, especially path-finding
 
 ### Todo
-- the AI-opponent is not yet set up, so the second tank can be controlled with the arrow keys.
 - scoreboard and roundup
 
 ## THIS GAME IS WIP
