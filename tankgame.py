@@ -7,7 +7,7 @@ import numpy as np
 #========CONFIGURATION========
 WIDTH = 500
 HEIGHT = 500
-DEBUG = True
+DEBUG = False
 ShellCollide = True
 BULLET_COOLDOWN = 500
 TANK_VEL = 1
@@ -131,7 +131,7 @@ class Tank():
         self.pos[1] = max(min(self.pos[1],HEIGHT-self.border),0+self.border)
 
 class Player(Tank):
-    def __init__(self,imgset,coords,name,keyset):
+    def __init__(self,imgset,coords,name,keyset,rep_matrix):
         super().__init__(imgset,coords,name)
         self.keyset = keyset
         self.bulletMgr = BulletManager(self,self.keyset[4])
@@ -162,19 +162,27 @@ class Player(Tank):
             self.slider.update(self.HP)
             self.updateCollideRect()
         else:
-            tanks.remove(self)
+            for rep in tanks[::1]:
+                if rep.obj == self:
+                    tanks.remove(rep)
     
     def draw(self,win):
         self.bulletMgr.drawBullets(win)
         super().draw(win)
     
 class AI(Tank):
-    def __init__(self,imgset,coords,name):
+    def __init__(self,imgset,coords,name,rep_matrix):
         super().__init__(imgset,coords,name)
+        self.rep_matrix  =rep_matrix
 
     def move(self,keys,tanks,obstacles):
-        self.slider.update(self.HP)
-        self.updateCollideRect()
+        if self.HP > 0:
+            self.slider.update(self.HP)
+            self.updateCollideRect()
+        else:
+            for rep in tanks[::1]:
+                if rep.obj == self:
+                    tanks.remove(rep)
 
 class Bullet(Sprite):
     def __init__(self,angle,coords,img):
@@ -246,16 +254,16 @@ class GameManager():
         pygame.display.set_caption("Tank Game")
         pygame.display.set_icon(tank1[0])
 
+        self.obstMgr = ObstacleManager(SIZES,rock)
+        self.obstMgr.build()
+
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
 
         self.tanks = []
-        self.player = Player(tank1,(400,400),"Player",keyset)
+        self.player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix)
         self.tanks.append(self.player.rep)
-        self.ai = AI(tank2,(100,100),"AI")
+        self.ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix)
         self.tanks.append(self.ai.rep)
-
-        self.obstMgr = ObstacleManager(SIZES,rock)
-        self.obstMgr.build()
         
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
@@ -268,6 +276,7 @@ class GameManager():
     def main(self):
         clock = pygame.time.Clock()
         run = True
+        winner = 0
         while run:
             clock.tick(120)
             for event in pygame.event.get():
@@ -279,8 +288,20 @@ class GameManager():
             for tank in self.tanks:
                 tank.obj.move(keys,self.tanks,self.obstMgr.obstacles)
             
+            if len(self.tanks) <= 1:
+                run = False
+                if len(self.tanks) == 1:
+                    winner = self.tanks[0].obj
             self.redrawGameWindow()
 
+        if(winner != 0):
+            font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
+            text = font.render("The {} won the game!".format(winner.name),True,(255,0,0))
+            pos = (SCREEN[0]//20,SCREEN[1]*2//5)
+            print(pos)
+            self.win.blit(text,pos)
+            pygame.display.update()
+            delay(2000)
         pygame.quit()
 
 class Slider():
