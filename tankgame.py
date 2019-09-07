@@ -3,6 +3,7 @@ import math
 from random import randint
 import os
 import numpy as np
+from time import time,sleep
 
 #========CONFIGURATION========
 WIDTH = 500
@@ -99,6 +100,7 @@ class Tank():
         self.slider.update(self.HP)
         self.rep = Representer(self,self.coll_rect)
         self.border = self.coll_rect.width//2
+        self.DeleteFlag = False
     
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -162,9 +164,7 @@ class Player(Tank):
             self.slider.update(self.HP)
             self.updateCollideRect()
         else:
-            for rep in tanks[::1]:
-                if rep.obj == self:
-                    tanks.remove(rep)
+            self.DeleteFlag = True
     
     def draw(self,win):
         self.bulletMgr.drawBullets(win)
@@ -173,16 +173,19 @@ class Player(Tank):
 class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix):
         super().__init__(imgset,coords,name)
-        self.rep_matrix  =rep_matrix
+        self.rep_matrix =rep_matrix
 
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
             self.slider.update(self.HP)
+
             self.updateCollideRect()
         else:
-            for rep in tanks[::1]:
-                if rep.obj == self:
-                    tanks.remove(rep)
+            self.DeleteFlag = True
+    
+    def calcTargetAngle(self,tanks):
+        for rep in tanks:
+            pass
 
 class Bullet(Sprite):
     def __init__(self,angle,coords,img):
@@ -272,7 +275,6 @@ class GameManager():
         self.obstMgr.draw(self.win)
         pygame.display.update()
 
-
     def main(self):
         clock = pygame.time.Clock()
         run = True
@@ -285,8 +287,10 @@ class GameManager():
             
             keys =  pygame.key.get_pressed()
 
-            for tank in self.tanks:
+            for tank in self.tanks[::1]:
                 tank.obj.move(keys,self.tanks,self.obstMgr.obstacles)
+                if tank.obj.DeleteFlag:
+                    self.tanks.remove(tank)
             
             if len(self.tanks) <= 1:
                 run = False
@@ -298,10 +302,9 @@ class GameManager():
             font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
             text = font.render("The {} won the game!".format(winner.name),True,(255,0,0))
             pos = (SCREEN[0]//20,SCREEN[1]*2//5)
-            print(pos)
             self.win.blit(text,pos)
             pygame.display.update()
-            delay(2000)
+            sleep(2)
         pygame.quit()
 
 class Slider():
