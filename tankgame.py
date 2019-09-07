@@ -16,7 +16,7 @@ BORDER = 10
 SIZE_X = 10
 SIZE_Y = 10
 #=============================
-sizes = np.array([SIZE_X,SIZE_Y])
+SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
 
 bg = pygame.image.load("bg.jpg")
@@ -254,7 +254,7 @@ class GameManager():
         self.ai = AI(tank2,(100,100),"AI")
         self.tanks.append(self.ai.rep)
 
-        self.obstMgr = ObstacleManager(sizes,rock)
+        self.obstMgr = ObstacleManager(SIZES,rock)
         self.obstMgr.build()
         
     def redrawGameWindow(self):
@@ -309,7 +309,6 @@ class Slider():
 
 class Obstacle(Sprite):
     def __init__(self,img,pos,sizes):
-        print("Input: x:{} y:{} width:{} height:{}".format(pos[0],pos[1],sizes[0],sizes[1]))
         self.coll_rect = pygame.Rect(pos[0],pos[1],sizes[0],sizes[1])
         self.shell_rect = self.coll_rect.copy()
         self.img = pygame.transform.rotate(img,randint(0,359))
@@ -333,7 +332,7 @@ class ObstacleManager():
         print("sizes:"+str(self.sizes))
         print("gaps:"+str(self.gaps))
         self.obstImg = obst_img
-        self.repMatrix = np.zeros((self.sizes[0],self.sizes[1],4))
+        self.repMatrix = np.zeros(self.sizes[0],self.sizes[1])
 
         #get all .lvl files
         for _,_,f in os.walk("../"):
@@ -376,13 +375,18 @@ class ObstacleManager():
     def build(self):
         level_file = open(self.level)
         pos = np.zeros(2,dtype=int)
+        grid = np.zeros(2,dtype=int)
         for line in level_file:
             pos[0] = 0
+            grid[0] = 0
             for char in line:
                 if char == "X":
                     self.obstacles.append(Obstacle(self.obstImg,pos,self.gaps))
+                    self.repMatrix[grid] = 1
                 pos[0] += self.gaps[0]
+                grid[0] += 1
             pos[1]+= self.gaps[1]
+            grid[1] += 1
     
     def draw(self,win):
         for obstacle in self.obstacles:
