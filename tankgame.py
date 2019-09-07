@@ -8,7 +8,7 @@ from time import time,sleep
 #========CONFIGURATION========
 WIDTH = 500
 HEIGHT = 500
-DEBUG = False
+DEBUG = True
 ShellCollide = True
 BULLET_COOLDOWN = 500
 TANK_VEL = 1
@@ -64,22 +64,6 @@ class Representer():
     
     def update(self):
         self.hitbox = self.obj.coll_rect
-
-class Sprite:
-    def __init__(self,img,coords):
-        self.img = img
-        self.pos = np.array(coords)
-        self.orig  = img
-        self.angle = 0.0
-        self.rect = self.orig.get_rect()
-    
-    def draw(self,win):
-        self.img = pygame.transform.rotate(self.orig,self.angle)
-        #correction
-        self.rect.center = self.pos
-        win.blit(self.img,self.rect)
-        if DEBUG:
-            pygame.draw.rect(win,(255,0,255),self.rect,1)
 
 class Tank():
     def __init__(self,imgset,coords,name):
@@ -187,18 +171,26 @@ class AI(Tank):
         for rep in tanks:
             pass
 
-class Bullet(Sprite):
+class Bullet():
     def __init__(self,angle,coords,img):
-        super().__init__(img,coords)
+        self.img = pygame.transform.rotate(img,angle)
+        self.pos = np.array(coords)
+        self.rect = img.get_rect()
         self.angle = angle
         self.rect.width /= 2
         self.rect.height /= 2
-        self.rect.center = self.orig.get_rect().center
+        self.rect.center = self.pos
     
     def move(self):
         change = returnXYforAngle(self.angle,BULLET_VEL)
         self.pos = np.subtract(self.pos,change)
-        
+    
+    def draw(self,win):
+        self.rect.center = self.pos
+        win.blit(self.img,self.rect)
+        if DEBUG:
+            pygame.draw.rect(win,(255,0,255),self.rect,1)
+            
 class BulletManager():
     def __init__(self,player,trigger_key):
         self.player = player
@@ -331,7 +323,7 @@ class Slider():
         pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
 
-class Obstacle(Sprite):
+class Obstacle():
     def __init__(self,img,pos,sizes):
         self.coll_rect = pygame.Rect(pos[0],pos[1],sizes[0],sizes[1])
         self.shell_rect = self.coll_rect.copy()
