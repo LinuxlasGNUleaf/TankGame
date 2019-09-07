@@ -4,6 +4,7 @@ from random import randint
 import os
 import numpy as np
 from time import time,sleep
+import secrets
 
 #========CONFIGURATION========
 WIDTH = 500
@@ -16,10 +17,12 @@ BULLET_VEL = 5
 BORDER = 10
 SIZE_X = 10
 SIZE_Y = 10
+AI_TURN_VEL = 1
 #=============================
 SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
 
+#Loading images 
 bg = pygame.image.load("bg.jpg")
 tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
@@ -57,6 +60,11 @@ def normalize(v):
        return v
     return v / norm
 
+def calcDistance(obj1,obj2):
+        diff = np.subtract(obj1.pos,obj2.pos)
+        distance = math.sqrt(diff[0]**2+diff[1]**2)
+        return distance
+
 class Representer():
     def __init__(self,obj,hitbox):
         self.obj = obj
@@ -66,7 +74,7 @@ class Representer():
         self.hitbox = self.obj.coll_rect
 
 class Tank():
-    def __init__(self,imgset,coords,name):
+    def __init__(self,imgset,coords,name,uid):
         self.pos = np.array(coords)
         self.angle = 0.0
         self.orig = imgset
@@ -85,6 +93,7 @@ class Tank():
         self.rep = Representer(self,self.coll_rect)
         self.border = self.coll_rect.width//2
         self.DeleteFlag = False
+        self.uid = uid
     
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -117,8 +126,8 @@ class Tank():
         self.pos[1] = max(min(self.pos[1],HEIGHT-self.border),0+self.border)
 
 class Player(Tank):
-    def __init__(self,imgset,coords,name,keyset,rep_matrix):
-        super().__init__(imgset,coords,name)
+    def __init__(self,imgset,coords,name,keyset,rep_matrix,uid):
+        super().__init__(imgset,coords,name,uid)
         self.keyset = keyset
         self.bulletMgr = BulletManager(self,self.keyset[4])
             
@@ -155,21 +164,35 @@ class Player(Tank):
         super().draw(win)
     
 class AI(Tank):
-    def __init__(self,imgset,coords,name,rep_matrix):
-        super().__init__(imgset,coords,name)
+    def __init__(self,imgset,coords,name,rep_matrix,uid):
+        super().__init__(imgset,coords,name,uid)
         self.rep_matrix =rep_matrix
 
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
             self.slider.update(self.HP)
-
+            angle_goal = self.calcTargetAngle(tanks)
+            self.angle += min(angle_goal-self.angle,AI_TURN_VEL)
+            self.calcTargetAngle(tanks)
             self.updateCollideRect()
         else:
             self.DeleteFlag = True
     
     def calcTargetAngle(self,tanks):
-        for rep in tanks:
-            pass
+        if len(tanks) > 1:
+            dist = int(math.sqrt(WIDTH**2 + HEIGHT**2))
+            for rep in tanks:
+                if calcDistance(self,rep.obj) < dist:
+                    target = rep.obj
+                    dist = calcDistance(self,rep.obj)
+        elif len(tanks) == 1:
+            target = tanks[0].obj
+            dist = calcDistance(self,tanks[0].obj)
+        else:
+            raise Warning("Error while calculating AI movement: no opponents found!")
+            return
+        diff = np.subtract(target.pos,self.pos)
+        return math.degrees(math.atan2(-diff[1],diff[0]))-90
 
 class Bullet():
     def __init__(self,angle,coords,img):
@@ -255,10 +278,10 @@ class GameManager():
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
 
         self.tanks = []
-        self.player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix)
-        self.tanks.append(self.player.rep)
-        self.ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix)
-        self.tanks.append(self.ai.rep)
+        player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix,secrets.token_hex(10))
+        self.tanks.append(player.rep)
+        ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix,secrets.token_hex(10))
+        self.tanks.append(ai.rep)
         
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
@@ -280,7 +303,13 @@ class GameManager():
             keys =  pygame.key.get_pressed()
 
             for tank in self.tanks[::1]:
-                tank.obj.move(keys,self.tanks,self.obstMgr.obstacles)
+                custom = self.tanks.copy()
+
+                for rep in custom[::1]:
+                    if (rep.obj.uid == tank.obj.uid):
+                        custom.remove(rep)
+
+                tank.obj.move(keys,custom,self.obstMgr.obstacles)
                 if tank.obj.DeleteFlag:
                     self.tanks.remove(tank)
             
