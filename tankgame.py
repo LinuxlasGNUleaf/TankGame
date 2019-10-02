@@ -167,6 +167,7 @@ class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
         self.rep_matrix =rep_matrix
+        print(self.rep_matrix.shape)
 
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
@@ -377,7 +378,9 @@ class ObstacleManager():
         print("sizes:"+str(self.sizes))
         print("gaps:"+str(self.gaps))
         self.obstImg = obst_img
-        self.repMatrix = np.zeros(self.sizes[0],self.sizes[1])
+        print(self.sizes)
+        self.repMatrix = np.zeros(self.sizes)
+        print(self.repMatrix.shape)
 
         #get all .lvl files
         for _,_,f in os.walk("../"):
