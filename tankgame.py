@@ -176,6 +176,8 @@ class AI(Tank):
         if self.HP > 0:
             angle_goal = self.calcTargetAngle(tanks)
             self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
+            self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
+            self.correctMovement(obstacles)
             self.slider.update(self.HP)
             self.updateCollideRect()
         else:
@@ -357,9 +359,9 @@ class GameManager():
         for tank in self.tanks:
             bulletCount += len(tank.obj.bulletMgr.bullets)
             if (tank.obj.name == "Player"):
-                Player_HP = tank.obj.HP
+                Player_HP = tank.obj.pos.astype("int32")
             if (tank.obj.name == "AI"):
-                AI_HP = tank.obj.HP
+                AI_HP = tank.obj.pos.astype("int32")
 
         obstCount = len(self.obstMgr.obstacles)
         obst_Size = self.obstMgr.repMatrix.shape
