@@ -97,6 +97,7 @@ class Tank():
         self.border = self.coll_rect.width//2
         self.DeleteFlag = False
         self.uid = uid
+        self.bulletMgr = BulletManager(self)
     
     def draw(self,win):
         num = int(self.count)%self.img_len
@@ -132,7 +133,7 @@ class Player(Tank):
     def __init__(self,imgset,coords,name,keyset,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
         self.keyset = keyset
-        self.bulletMgr = BulletManager(self,self.keyset[4])
+        self.bulletMgr.setPlayer(keyset[4])
             
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
@@ -170,14 +171,12 @@ class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
         self.rep_matrix =rep_matrix
-        print(self.rep_matrix.shape)
+        self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
-            
             angle_goal = self.calcTargetAngle(tanks)
-            self.angle = constrain(angle_goal-self.angle,-AI_TURN_VEL,AI_TURN_VEL)
-            self.calcTargetAngle(tanks)
+            self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
             self.slider.update(self.HP)
             self.updateCollideRect()
         else:
@@ -220,22 +219,38 @@ class Bullet():
             pygame.draw.rect(win,(255,0,255),self.rect,1)
             
 class BulletManager():
-    def __init__(self,player,trigger_key):
+    def __init__(self,player):
         self.player = player
         self.bullets = []
         self.alt = pygame.time.get_ticks()    
-        self.key = trigger_key
         self.dmg = 20
+        self.setup = False
+    
+    def setAI(self):
+        if(not(self.setup)):
+            self.setup = True
+            self.type = "AI"
+        else:
+            raise Warning("multiple setup of Bulletmgr is not valid")
+
+    def setPlayer(self,key):
+        if(not(self.setup)):
+            self.setup = True
+            self.type = "Player"
+            self.key = key
+        else:
+            raise Warning("multiple setup of Bulletmgr is not valid")
 
     def createBullets(self,keys):
         time = pygame.time.get_ticks()
-        if keys[self.key] and time-BULLET_COOLDOWN > self.alt:
-            angle = self.player.angle
-            change = returnXYforAngle(angle,-45) #for placing the 
-            newpos = np.add(self.player.pos,change)
-            newbullet = Bullet(angle,newpos,bullet)
-            self.bullets.append(newbullet)
-            self.alt = time
+        if (((self.type == "Player") and keys[self.key]) or (self.type == "AI")): #(if player and Key pressed) or if AI
+            if time-BULLET_COOLDOWN > self.alt:
+                angle = self.player.angle
+                change = returnXYforAngle(angle,-45) #for placing the 
+                newpos = np.add(self.player.pos,change)
+                newbullet = Bullet(angle,newpos,bullet)
+                self.bullets.append(newbullet)
+                self.alt = time
         
     def moveBullets(self,reps,obstacles):
         for bullet in self.bullets[::-1]:
@@ -277,6 +292,7 @@ class GameManager():
         pygame.display.set_caption("Tank Game")
         pygame.display.set_icon(tank1[0])
         self.font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
+        self.debug_font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//30)
 
         self.obstMgr = ObstacleManager(SIZES,rock)
         self.obstMgr.build()
@@ -349,9 +365,16 @@ class GameManager():
         obstCount = len(self.obstMgr.obstacles)
         obst_Size = self.obstMgr.repMatrix.shape
         
-        text = "bullets: {} obstacles: {} obstacle_matrix: {} HP AI: {} HP Pl: {}".format(bulletCount,obstCount,obst_Size,AI_HP,Player_HP)
-        debug_text = self.font.render(text,True,(255,0,0))
-        win.blit(debug_text,(HEIGHT*9/10,WIDTH*1/5))
+        text1 = "bullets: {} obstacles: {} obstacle_matrix: {} ".format(bulletCount,obstCount,obst_Size)
+        text2 = "HP AI: {} HP Pl: {}".format(AI_HP,Player_HP)
+        debug_text1 = self.debug_font.render(text1,True,(255,0,0))
+        debug_text2 = self.debug_font.render(text2,True,(255,0,0))
+        pos = np.array([5,HEIGHT*(9/10)])
+        pos1 = pos.copy()
+        pos2 = pos.copy()
+        pos2[1] += self.debug_font.get_height()*1.5
+        self.win.blit(debug_text1,pos1)
+        self.win.blit(debug_text2,pos2)
 
 class Slider():
     def __init__(self,obj,height,max_width,in_range,gap):
@@ -399,12 +422,8 @@ class ObstacleManager():
         self.levels = []
         self.sizes = sizes 
         self.gaps = np.divide(SCREEN,sizes).astype("int32")
-        print("sizes:"+str(self.sizes))
-        print("gaps:"+str(self.gaps))
         self.obstImg = obst_img
-        print(self.sizes)
         self.repMatrix = np.zeros(self.sizes)
-        print(self.repMatrix.shape)
 
         #get all .lvl files
         for _,_,f in os.walk("../"):
