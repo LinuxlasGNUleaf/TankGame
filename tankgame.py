@@ -48,24 +48,21 @@ def drawDebug(pos,angle,win):
     pygame.draw.line(win, (0,255,255),pos,(pos[0]-res[0],pos[1]))
     pygame.draw.line(win, (255,0,255),pos,(pos[0]-res[0],pos[1]-res[1]))
 
-def map(value, inMin, inMax, outMin, outMax):
-    if value < inMin:
-        value = inMin
-    elif value > inMax:
-        value = inMax
-    inRange = max(inMax - inMin,1)
-    outRange = outMax - outMin
-    valueScaled = float(value - inMin) / float(inRange)
-
-    return outMin + (valueScaled * outRange)
-
 def constrain(x,min_,max_):
     return min(max(x,min_),max_)
+
+def map(value, inMin, inMax, outMin, outMax):
+    value = constrain(value,inMin,inMax)
+    #inRange = max(inMax - inMin,1)
+    inRange = inMax - inMin
+    outRange = outMax - outMin
+    valueScaled = float(value - inMin) / float(inRange)
+    return outMin + (valueScaled * outRange)
 
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm == 0: 
-       return v
+       return v 
     return v / norm
 
 def calcDistance(obj1,obj2):
@@ -259,33 +256,28 @@ class BulletManager():
         
     def moveBullets(self,reps,obstacles):
         for bullet in self.bullets[::-1]:
-            existing = True
             bullet.move()
-            if not(bullet.pos[0] in range(0,WIDTH) or not(bullet.pos[1] in range(0,HEIGHT))):
-                self.bullets.remove(bullet)
-                existing = False
 
-            if not(existing):
-                continue
+            #checking for on-screen
+            if not((int(bullet.pos[0]) in range(0,SCREEN[0])) and (int(bullet.pos[1]) in range(0,SCREEN[1]))):
+                self.bullets.remove(bullet)
+                continue                
             
+            #checking for collision with another tank
             for rep in reps:
                 tank = rep.obj
                 if bullet.rect.colliderect(rep.hitbox) and tank != self.player:
                     tank.HP -= self.dmg
                     self.bullets.remove(bullet)
-                    existing = False
+                    continue                
             
-            if not(existing):
-                continue
-
+            #checking for collision with obstacles
             if ShellCollide:
                 for obstacle in obstacles:
                     if bullet.rect.colliderect(obstacle.shell_rect):
                         self.bullets.remove(bullet)
-                        existing = False
                         break
 
-    
     def drawBullets(self,win):
         for bullet in self.bullets:
             bullet.draw(win)
@@ -309,7 +301,7 @@ class GameManager():
         self.tanks.append(player.rep)
         ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix,UID_create(10))
         self.tanks.append(ai.rep)
-        
+
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
         for tank in self.tanks:
