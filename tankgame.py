@@ -54,6 +54,9 @@ def map(value, inMin, inMax, outMin, outMax):
 
     return outMin + (valueScaled * outRange)
 
+def constrain(x,min_,max_):
+    return min(max(x,min_),max_)
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm == 0: 
@@ -122,8 +125,8 @@ class Tank():
             diff = np.multiply(np.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
             diff = normalize(diff)
             self.pos = np.add(diff,self.pos)
-        self.pos[0] = max(min(self.pos[0],WIDTH-self.border),0+self.border)
-        self.pos[1] = max(min(self.pos[1],HEIGHT-self.border),0+self.border)
+        self.pos[0] = constrain(self.pos[0],self.border,WIDTH-self.border)
+        self.pos[1] = constrain(self.pos[1],self.border,HEIGHT-self.border)
 
 class Player(Tank):
     def __init__(self,imgset,coords,name,keyset,rep_matrix,uid):
@@ -171,10 +174,11 @@ class AI(Tank):
 
     def move(self,keys,tanks,obstacles):
         if self.HP > 0:
-            self.slider.update(self.HP)
+            
             angle_goal = self.calcTargetAngle(tanks)
-            self.angle += min(angle_goal-self.angle,AI_TURN_VEL)
+            self.angle = constrain(angle_goal-self.angle,-AI_TURN_VEL,AI_TURN_VEL)
             self.calcTargetAngle(tanks)
+            self.slider.update(self.HP)
             self.updateCollideRect()
         else:
             self.DeleteFlag = True
@@ -272,6 +276,7 @@ class GameManager():
         self.win = pygame.display.set_mode((WIDTH,HEIGHT))
         pygame.display.set_caption("Tank Game")
         pygame.display.set_icon(tank1[0])
+        self.font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
 
         self.obstMgr = ObstacleManager(SIZES,rock)
         self.obstMgr.build()
@@ -289,6 +294,8 @@ class GameManager():
         for tank in self.tanks:
             tank.obj.draw(self.win)
         self.obstMgr.draw(self.win)
+        if DEBUG:
+            self.drawDebugText()
         pygame.display.update()
 
     def main(self):
@@ -321,13 +328,30 @@ class GameManager():
             self.redrawGameWindow()
 
         if(winner != 0):
-            font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
-            text = font.render("The {} won the game!".format(winner.name),True,(255,0,0))
+            text = self.font.render("The {} won the game!".format(winner.name),True,(255,0,0))
             pos = (SCREEN[0]//20,SCREEN[1]*2//5)
             self.win.blit(text,pos)
             pygame.display.update()
             sleep(2)
         pygame.quit()
+
+    def drawDebugText(self):
+        bulletCount = 0
+        Player_HP = 0
+        AI_HP = 0
+        for tank in self.tanks:
+            bulletCount += len(tank.obj.bulletMgr.bullets)
+            if (tank.obj.name == "Player"):
+                Player_HP = tank.obj.HP
+            if (tank.obj.name == "AI"):
+                AI_HP = tank.obj.HP
+
+        obstCount = len(self.obstMgr.obstacles)
+        obst_Size = self.obstMgr.repMatrix.shape
+        
+        text = "bullets: {} obstacles: {} obstacle_matrix: {} HP AI: {} HP Pl: {}".format(bulletCount,obstCount,obst_Size,AI_HP,Player_HP)
+        debug_text = self.font.render(text,True,(255,0,0))
+        win.blit(debug_text,(HEIGHT*9/10,WIDTH*1/5))
 
 class Slider():
     def __init__(self,obj,height,max_width,in_range,gap):
