@@ -4,7 +4,6 @@ from random import randint
 import os
 import numpy as np
 from time import time,sleep
-import secrets
 
 #========CONFIGURATION========
 WIDTH = 500
@@ -28,6 +27,12 @@ tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
 bullet = pygame.image.load("bullet.png")
 rock = pygame.image.load("rock.png")
+
+def UID_create(len):
+    UID = ""
+    for i in range(len):
+        UID += str(randint(0,9))
+    return UID
 
 def returnXYforAngle(angle,vel):
     rad = math.radians(angle)
@@ -300,9 +305,9 @@ class GameManager():
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
 
         self.tanks = []
-        player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix,secrets.token_hex(10))
+        player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix,UID_create(10))
         self.tanks.append(player.rep)
-        ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix,secrets.token_hex(10))
+        ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix,UID_create(10))
         self.tanks.append(ai.rep)
         
     def redrawGameWindow(self):
