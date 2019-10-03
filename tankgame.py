@@ -119,15 +119,12 @@ class Tank():
         self.coll_rect.center = self.pos
     
     def correctMovement(self,obstacles):
-        colliding = []
         for obstacle in obstacles:
             if self.coll_rect.colliderect(obstacle.coll_rect):
-                colliding.append(obstacle)
-        
-        for obstacle in colliding:
-            diff = np.multiply(np.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
-            diff = normalize(diff)
-            self.pos = np.add(diff,self.pos)
+                diff = np.multiply(np.subtract((obstacle.coll_rect.center),(self.coll_rect.center)),-1)
+                diff = normalize(diff)
+                self.pos = np.add(diff,self.pos)
+            
         self.pos[0] = constrain(self.pos[0],self.border,WIDTH-self.border)
         self.pos[1] = constrain(self.pos[1],self.border,HEIGHT-self.border)
 
@@ -188,9 +185,10 @@ class AI(Tank):
         if len(tanks) > 1:
             dist = int(math.sqrt(WIDTH**2 + HEIGHT**2))
             for rep in tanks:
-                if calcDistance(self,rep.obj) < dist:
+                thisDist = calcDistance(self,rep.obj)
+                if thisDist < dist:
                     target = rep.obj
-                    dist = calcDistance(self,rep.obj)
+                    dist = thisDist
         elif len(tanks) == 1:
             target = tanks[0].obj
             dist = calcDistance(self,tanks[0].obj)
@@ -248,7 +246,7 @@ class BulletManager():
         if (((self.type == "Player") and keys[self.key]) or (self.type == "AI")): #(if player and Key pressed) or if AI
             if time-BULLET_COOLDOWN > self.alt:
                 angle = self.player.angle
-                change = returnXYforAngle(angle,-45) #for placing the 
+                change = returnXYforAngle(angle,-45)
                 newpos = np.add(self.player.pos,change)
                 newbullet = Bullet(angle,newpos,bullet)
                 self.bullets.append(newbullet)
@@ -264,12 +262,16 @@ class BulletManager():
                 continue                
             
             #checking for collision with another tank
+            exist = True
             for rep in reps:
                 tank = rep.obj
                 if bullet.rect.colliderect(rep.hitbox) and tank != self.player:
                     tank.HP -= self.dmg
-                    self.bullets.remove(bullet)
-                    continue                
+                    exist = False
+
+            if not(exist):
+                self.bullets.remove(bullet)
+                continue                
             
             #checking for collision with obstacles
             if ShellCollide:
@@ -304,11 +306,11 @@ class GameManager():
 
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
+        if DEBUG:
+            self.drawDebugText()
         for tank in self.tanks:
             tank.obj.draw(self.win)
         self.obstMgr.draw(self.win)
-        if DEBUG:
-            self.drawDebugText()
         pygame.display.update()
 
     def main(self):
