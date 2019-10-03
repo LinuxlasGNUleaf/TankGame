@@ -2,7 +2,7 @@
 
 ## Introduction
 This is a pygame-project on Python 3.6, using the libraries **pygame**, math, random, os and numpy.
-The goal of this project is to create a small tank game where you control a Tank and fight against an AI opponent.
+The goal of this project is to create a small tank game where you control a Tank and fight against one or more AI opponents.
 
 ## Development
 
@@ -16,9 +16,12 @@ The goal of this project is to create a small tank game where you control a Tank
 - game management, end screen ✓
 - numpy arrays / matrices for better performance ✓
 - subclassing Tank -> Player, Tank -> AI, Sprite -> Bullet and Sprite -> Obstacle to clean up the code ✓
+- AI ✓
+- rudimentary path finding, which means the AI drives towards the player ✓
+- variable number of players and AIs to extend the game ✓
 
 ### WIP
-- AI, especially path-finding
+- advanced pathfinding
 
 ### Todo
 - scoreboard and roundup
