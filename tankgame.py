@@ -102,6 +102,8 @@ class Tank():
         self.bulletMgr = BulletManager(self)
     
     def draw(self,win):
+        self.bulletMgr.drawBullets(win)
+
         num = int(self.count)%self.img_len
         self.img = pygame.transform.rotate(self.orig[num],self.angle)
 
@@ -115,6 +117,16 @@ class Tank():
             drawDebug(self.pos,self.angle,win)
             pygame.draw.rect(win,(255,0,0),self.coll_rect,1)
     
+    def move(self,keys,tanks,obstacles):
+        
+        if self.HP > 0:
+            self.bulletMgr.moveBullets(tanks,obstacles)
+        else:
+            self.DeleteFlag = True
+        self.slider.update(self.HP)
+        self.updateCollideRect()
+        self.bulletMgr.createBullets(keys)
+
     def updateCollideRect(self):
         self.coll_rect.center = self.pos
     
@@ -135,36 +147,26 @@ class Player(Tank):
         self.bulletMgr.setPlayer(keyset[4])
             
     def move(self,keys,tanks,obstacles):
-        if self.HP > 0:
-            self.bulletMgr.moveBullets(tanks,obstacles)
+        if keys[self.keyset[0]] or keys[self.keyset[1]]:  #moving
+            change = returnXYforAngle(self.angle,TANK_VEL)
+            if keys[self.keyset[0]]:
+                self.pos = np.subtract(self.pos,change)
+                self.count += 0.05
 
-            if keys[self.keyset[0]] or keys[self.keyset[1]]:  #moving
-                change = returnXYforAngle(self.angle,TANK_VEL)
-                if keys[self.keyset[0]]:
-                    self.pos = np.subtract(self.pos,change)
-                    self.count += 0.05
-                elif keys[self.keyset[1]]:
-                    self.pos = np.add(self.pos,change)
-                    self.count += 0.05
-                self.correctMovement(obstacles)
-                
-            if keys[self.keyset[2]]: #left
-                self.angle += self.step
-                self.count += 0.03
-
-            elif keys[self.keyset[3]]: #right
-                self.angle -= self.step
-                self.count += 0.03
+            elif keys[self.keyset[1]]:
+                self.pos = np.add(self.pos,change)
+                self.count += 0.05
+            self.correctMovement(obstacles)
             
-            self.bulletMgr.createBullets(keys)
-            self.slider.update(self.HP)
-            self.updateCollideRect()
-        else:
-            self.DeleteFlag = True
-    
-    def draw(self,win):
-        self.bulletMgr.drawBullets(win)
-        super().draw(win)
+        if keys[self.keyset[2]]: #left
+            self.angle += self.step
+            self.count += 0.03
+
+        elif keys[self.keyset[3]]: #right
+            self.angle -= self.step
+            self.count += 0.03
+
+        super().move(keys,tanks,obstacles) 
     
 class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
@@ -173,15 +175,11 @@ class AI(Tank):
         self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
-        if self.HP > 0:
-            angle_goal = self.calcTargetAngle(tanks)
-            self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
-            self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
-            self.correctMovement(obstacles)
-            self.slider.update(self.HP)
-            self.updateCollideRect()
-        else:
-            self.DeleteFlag = True
+        angle_goal = self.calcTargetAngle(tanks)
+        self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
+        self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
+        self.correctMovement(obstacles)
+        super().move(0,tanks,obstacles)
     
     def calcTargetAngle(self,tanks):
         if len(tanks) > 1:
@@ -320,7 +318,7 @@ class GameManager():
         run = True
         winner = 0
         while run:
-            clock.tick(120)
+            clock.tick(240)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     run = False
