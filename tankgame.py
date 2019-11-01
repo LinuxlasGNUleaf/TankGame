@@ -8,7 +8,7 @@ from time import time,sleep
 #========CONFIGURATION========
 WIDTH = 500
 HEIGHT = 500
-DEBUG = True
+DEBUG = False
 ShellCollide = True
 BULLET_COOLDOWN = 500
 TANK_VEL = 1
