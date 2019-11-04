@@ -31,7 +31,7 @@ AI_TURN_VEL = 1
 HP_TANK = 100
 
 # advanced pathfinding settings
-
+AI_PATH_FINDING_COOLDOWN = 1
 # ====================================================================
 SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
@@ -109,10 +109,10 @@ def findPath(start,end,_map,diagonal=False):
     The start position will NOT be included in the path, but the end position will be.\n
     """
 
-    SIZES = numpy.shape(_map)
+    SIZES = np.shape(_map)
     max_i = SIZES[0] * SIZES[1]
 
-    filledMap = numpy.zeros(SIZES) # initialize map with zeroes
+    filledMap = np.zeros(SIZES) # initialize map with zeroes
     newPoints = [start] # add the start point as init point
     iteration = 0 # set the iteration to zero
     filledMap[start[1],start[0]] = -1
@@ -267,13 +267,14 @@ class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
         self.rep_matrix = rep_matrix
-        for line in self.rep_matrix:
-            print(line)
+        self.path = []
+        self.updatePathFlag = False
         self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
-        
-        # TODO: Pathfinding!
+        if self.updatePathFlag:
+            path = findPath([0,0],[9,9],self.rep_matrix)
+            self.updatePathFlag = False
 
         self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
         self.correctMovement(obstacles)
@@ -383,10 +384,13 @@ class GameManager():
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
 
         self.tanks = []
+        self.AIs = []
+
         player = Player(tank1,(400,400),"Player",keyset,self.obstMgr.repMatrix,UID_create(10))
         self.tanks.append(player.rep)
         ai = AI(tank2,(100,100),"AI",self.obstMgr.repMatrix,UID_create(10))
         self.tanks.append(ai.rep)
+        self.AIs.append(ai.rep)
 
     def redrawGameWindow(self):
         self.win.blit(bg,(0,0))
@@ -398,6 +402,7 @@ class GameManager():
         pygame.display.update()
 
     def main(self):
+        pf_time = time()
         clock = pygame.time.Clock()
         run = True
         winner = 0
@@ -424,6 +429,12 @@ class GameManager():
                 run = False
                 if len(self.tanks) == 1:
                     winner = self.tanks[0].obj
+            
+            if (time() - pf_time) > AI_PATH_FINDING_COOLDOWN:
+                for ai in self.AIs:
+                    ai.obj.updatePathFlag = True
+                pf_time = time()
+
             self.redrawGameWindow()
 
         if(winner != 0):
