@@ -76,27 +76,6 @@ def normalize(v):
        return v 
     return v / norm
 
-def calcDistance(obj1,obj2):
-        diff = np.subtract(obj1.pos,obj2.pos)
-        distance = math.sqrt(diff[0]**2+diff[1]**2)
-        return distance
-
-def getNearest(t_obj,tank_list):
-    if len(tank_list) > 1:
-        dist = math.inf
-        for tank in tank_list:
-            thisDist = calcDistance(t_obj,tank.obj)
-            if thisDist < dist:
-                target = tank.obj
-                dist = thisDist
-        return target
-
-    elif len(tank_list) == 1:
-        return tank_list[0].obj
-
-    else:
-        return None
-
 class Representer():
     def __init__(self,obj,hitbox):
         self.obj = obj
@@ -104,6 +83,7 @@ class Representer():
     
     def update(self):
         self.hitbox = self.obj.coll_rect
+
 
 class Tank():
     def __init__(self,imgset,coords,name,uid):
@@ -167,6 +147,7 @@ class Tank():
         self.pos[0] = constrain(self.pos[0],self.border,WIDTH-self.border)
         self.pos[1] = constrain(self.pos[1],self.border,HEIGHT-self.border)
 
+
 class Player(Tank):
     def __init__(self,imgset,coords,name,keyset,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
@@ -194,7 +175,8 @@ class Player(Tank):
             self.count += 0.03
 
         super().move(keys,tanks,obstacles) 
-    
+
+
 class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
@@ -204,16 +186,13 @@ class AI(Tank):
         self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
-        target = getNearest(self,tanks)
+        
+        # TODO: Pathfinding!
 
-        if target:
-            diff = np.subtract(target.pos,self.pos)
-            angle_goal = math.degrees(math.atan2(-diff[1],diff[0])-1/2*math.pi)
-            self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
         self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
         self.correctMovement(obstacles)
         super().move(0,tanks,obstacles)
-        
+
 
 class Bullet():
     def __init__(self,angle,coords,img):
@@ -234,7 +213,8 @@ class Bullet():
         win.blit(self.img,self.rect)
         if DEBUG:
             pygame.draw.rect(win,(255,0,255),self.rect,1)
-            
+
+
 class BulletManager():
     def __init__(self,player):
         self.player = player
@@ -300,6 +280,7 @@ class BulletManager():
     def drawBullets(self,win):
         for bullet in self.bullets:
             bullet.draw(win)
+
 
 class GameManager():
     def __init__(self):
@@ -392,6 +373,7 @@ class GameManager():
         self.win.blit(debug_text1,pos1)
         self.win.blit(debug_text2,pos2)
 
+
 class Slider():
     def __init__(self,obj,height,max_width,in_range,gap):
         self.obj = obj
@@ -416,6 +398,7 @@ class Slider():
         pygame.draw.rect(win,pygame.Color(100,100,100),rect2)
         pygame.draw.rect(win,self.color,rect)
 
+
 class Obstacle():
     def __init__(self,img,pos,sizes):
         self.coll_rect = pygame.Rect(pos[0],pos[1],sizes[0],sizes[1])
@@ -431,6 +414,7 @@ class Obstacle():
         if DEBUG:
             pygame.draw.rect(win,(0,255,255),self.coll_rect,1)
             pygame.draw.rect(win,(255,0,255),self.shell_rect,1)
+
 
 class ObstacleManager():
     def __init__(self,sizes,obst_img):
@@ -498,6 +482,7 @@ class ObstacleManager():
     def draw(self,win):
         for obstacle in self.obstacles:
             obstacle.draw(win)
+
 
 if __name__ == "__main__":
     gameMgr = GameManager()
