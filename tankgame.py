@@ -81,6 +81,22 @@ def calcDistance(obj1,obj2):
         distance = math.sqrt(diff[0]**2+diff[1]**2)
         return distance
 
+def getNearest(t_obj,tank_list):
+    if len(tank_list) > 1:
+        dist = math.inf
+        for tank in tank_list:
+            thisDist = calcDistance(t_obj,tank.obj)
+            if thisDist < dist:
+                target = tank.obj
+                dist = thisDist
+        return target
+
+    elif len(tank_list) == 1:
+        return tank_list[0].obj
+
+    else:
+        return None
+
 class Representer():
     def __init__(self,obj,hitbox):
         self.obj = obj
@@ -188,28 +204,16 @@ class AI(Tank):
         self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
-        angle_goal = self.calcTargetAngle(tanks)
-        self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
+        target = getNearest(self,tanks)
+
+        if target:
+            diff = np.subtract(target.pos,self.pos)
+            angle_goal = math.degrees(math.atan2(-diff[1],diff[0])-1/2*math.pi)
+            self.angle = constrain(angle_goal,self.angle-AI_TURN_VEL,self.angle+AI_TURN_VEL)
         self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
         self.correctMovement(obstacles)
         super().move(0,tanks,obstacles)
-    
-    def calcTargetAngle(self,tanks):
-        if len(tanks) > 1:
-            dist = int(math.sqrt(WIDTH**2 + HEIGHT**2))
-            for rep in tanks:
-                thisDist = calcDistance(self,rep.obj)
-                if thisDist < dist:
-                    target = rep.obj
-                    dist = thisDist
-        elif len(tanks) == 1:
-            target = tanks[0].obj
-            dist = calcDistance(self,tanks[0].obj)
-        else:
-            raise Warning("Error while calculating AI movement: no opponents found!")
-            return
-        diff = np.subtract(target.pos,self.pos)
-        return math.degrees(math.atan2(-diff[1],diff[0])-1/2*math.pi)
+        
 
 class Bullet():
     def __init__(self,angle,coords,img):
