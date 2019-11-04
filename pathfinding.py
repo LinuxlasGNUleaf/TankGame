@@ -4,7 +4,7 @@ import matplotlib.image as mpimg
 
 SIZES = [10,10]
 max_i = SIZES[0] * SIZES[1]
-def findPath(start, exit, _map):
+def paintMap(start, _map):
     filledMap = numpy.zeros(SIZES)
     newPoints = []
     newPoints.append(start)
@@ -50,6 +50,29 @@ def getSurrounding(pos):
     surrounding.append([pos[0] - 1,pos[1] + 1]) # left - down
     return surrounding
 
+def getPath(end,_map):
+
+    iteration = _map[end[1],end[0]]
+    path = [end]
+    actPoint = end
+
+    while True:
+
+        for newp in getSurrounding(actPoint):
+            if not(newp[0] in range(SIZES[0]) and newp[1] in range(SIZES[1])):
+                continue
+
+            if _map[newp[1],newp[0]] < iteration:
+                actPoint = newp # replace with new
+                path.append(actPoint) # save to path
+                break
+
+        iteration -= 1
+        if iteration < 0:
+            break
+    
+    return path
+
 map = numpy.array([
     [0,0,0,0,0,0,0,0,0,0],
     [0,0,0,0,0,0,0,0,0,0],
@@ -65,5 +88,6 @@ map = numpy.array([
 start = [5,5]
 end = [4,1]
 
-filledMap = findPath(start,end,map)
-print(filledMap)
+filledMap = paintMap(start,map)
+path = getPath(end,filledMap)
+print(path[::-1])
