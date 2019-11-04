@@ -5,19 +5,30 @@ import os
 import numpy as np
 from time import time,sleep
 
-#========CONFIGURATION========
+# ============================>> CONFIG <<============================
+# basic video settings
 WIDTH = 500
 HEIGHT = 500
 DEBUG = False
+
+# game settings
+
+# bullets
 ShellCollide = True
 BULLET_COOLDOWN = 500
-TANK_VEL = 1
+BULLET_DMG = 20
 BULLET_VEL = 5
+
+# obstacles
 BORDER = 10
 SIZE_X = 10
 SIZE_Y = 10
+
+# player and AI
+TANK_VEL = 1
 AI_TURN_VEL = 1
-#=============================
+HP_TANK = 100
+# ====================================================================
 SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
 
@@ -91,7 +102,7 @@ class Tank():
         self.coll_rect.center = self.img.get_rect().center
         self.img_len = len(imgset)
         self.count = 0
-        self.HP = 100
+        self.HP = HP_TANK
         self.name = name
         self.slider = Slider(self,5,30,(0,100),40)
         self.slider.update(self.HP)
@@ -171,7 +182,9 @@ class Player(Tank):
 class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
-        self.rep_matrix =rep_matrix
+        self.rep_matrix = rep_matrix
+        for line in self.rep_matrix:
+            print(line)
         self.bulletMgr.setAI()
 
     def move(self,keys,tanks,obstacles):
@@ -196,7 +209,7 @@ class AI(Tank):
             raise Warning("Error while calculating AI movement: no opponents found!")
             return
         diff = np.subtract(target.pos,self.pos)
-        return math.degrees(math.atan2(-diff[1],diff[0]))-90
+        return math.degrees(math.atan2(-diff[1],diff[0])-1/2*math.pi)
 
 class Bullet():
     def __init__(self,angle,coords,img):
@@ -223,7 +236,7 @@ class BulletManager():
         self.player = player
         self.bullets = []
         self.alt = pygame.time.get_ticks()    
-        self.dmg = 20
+        self.dmg = BULLET_DMG
         self.setup = False
     
     def setAI(self):
