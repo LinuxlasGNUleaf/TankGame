@@ -6,6 +6,7 @@ import numpy as np
 from time import time,sleep
 
 # ============================>> CONFIG <<============================
+
 # basic video settings
 WIDTH = 500
 HEIGHT = 500
@@ -28,6 +29,9 @@ SIZE_Y = 10
 TANK_VEL = 1
 AI_TURN_VEL = 1
 HP_TANK = 100
+
+# advanced pathfinding settings
+
 # ====================================================================
 SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
@@ -75,6 +79,43 @@ def normalize(v):
     if norm == 0: 
        return v 
     return v / norm
+
+def findPath(start, exit, _map):
+    filledMap = np.zeros(SIZES)
+    newPoints = []
+    newPoints.append(start)
+    iteration = 0
+    while newPoints:
+        for point in newPoints[::-1]:
+            filledMap[point] = iteration
+            newPoints.append(getSurrounding(point))
+        
+        for point in newPoints[::-1]:
+
+            if not(point[0] in range(SIZES[0]) and point[1] in range(SIZES[1])): # if point is out of boundaries, remove it.
+                newPoints.remove(point)
+                continue
+
+            if _map[point] != 0: # if value of point on _map is not equal to 0, remove it.
+                newPoints.remove(point)
+                continue
+            
+            if filledMap[point] != 0: # if point is already indexed on filledMap, remove it.
+                newPoints.remove(point)
+                continue
+
+def getSurrounding(pos):
+    surrounding = []
+    surrounding.append([pos[0] + 1,pos[1]]) # right
+    surrounding.append([pos[0] - 1,pos[1]]) # left
+    surrounding.append([pos[0],pos[1] + 1]) # down
+    surrounding.append([pos[0],pos[1] - 1]) # up
+    surrounding.append([pos[0] + 1,pos[1] + 1]) # right - down
+    surrounding.append([pos[0] - 1,pos[1] - 1]) # left - up
+    surrounding.append([pos[0] + 1,pos[1] - 1]) # right - up
+    surrounding.append([pos[0] - 1,pos[1] + 1]) # left - down
+
+    return surrounding
 
 class Representer():
     def __init__(self,obj,hitbox):
