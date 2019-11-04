@@ -59,12 +59,9 @@ def findPath(start,end,_map,diagonal=False):
                 continue
 
         iteration += 1 # next iteration, increase counter
-    
-    print(filledMap)
 
     # find the way back to the start pos
     iteration = filledMap[end[1],end[0]]
-    print(iteration)
     path = [end] # add the last point (starting point) to path (path will be reversed at the end)
     actPoint = end # set the current point to end
 
@@ -82,7 +79,6 @@ def findPath(start,end,_map,diagonal=False):
         iteration -= 1 # decrease the index
         if iteration < 0: # if the index is lower than zero now, the start point is reached and the algorithm will exit.
             break
-    print(path)
     path.pop() # remove the last item, which is the start position. We don't want to have that in the path
     return path[::-1] # returning the reversed path to get from "end --> start" to "start --> end"
 
