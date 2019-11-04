@@ -473,7 +473,7 @@ class ObstacleManager():
             for char in line:
                 if char == "X":
                     self.obstacles.append(Obstacle(self.obstImg,pos,self.gaps))
-                    self.repMatrix[grid] = 1
+                    self.repMatrix[grid[1],grid[0]] = 1
                 pos[0] += self.gaps[0]
                 grid[0] += 1
             pos[1]+= self.gaps[1]
