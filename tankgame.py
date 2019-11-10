@@ -2,13 +2,16 @@
 TankGame
 a game by JaWs
 """
-import pygame
+# std imports
 import math
 from random import randint
 import os
-import numpy as np
 from time import time, sleep
 import threading
+
+# extra imports
+import numpy as np
+import pygame
 
 # ============================>> CONFIG <<============================
 
@@ -43,11 +46,11 @@ SCREEN = np.array([WIDTH, HEIGHT])
 GAPS = np.divide(SCREEN, SIZES).astype("int32")
 
 #Loading images
-bg = pygame.image.load("bg.jpg")
-tank1 = [pygame.image.load("tank1.png"), pygame.image.load("tank2.png")]
-tank2 = [pygame.image.load("tank3.png"), pygame.image.load("tank4.png")]
-bullet = pygame.image.load("bullet.png")
-rock = pygame.image.load("rock.png")
+BACKDROP = pygame.image.load("bg.jpg")
+TANK_1 = [pygame.image.load("tank1.png"), pygame.image.load("tank2.png")]
+TANK_2 = [pygame.image.load("tank3.png"), pygame.image.load("tank4.png")]
+BULLET = pygame.image.load("bullet.png")
+ROCK = pygame.image.load("rock.png")
 
 def debug(string):
     """
@@ -65,7 +68,11 @@ def uid_create(uidlen):
         uid += str(randint(0, 9))
     return uid
 
-def sin_tan_for_Angle(angle, rad):
+def sin_cos_for_angle(angle, rad):
+    """
+    returns a array of sin(x) and cos(x) of a given angle.\n
+    multiplies these values with the radius.
+    """
     rad = math.radians(angle)
     res = np.zeros(2)
     res[0] = math.sin(rad)
@@ -73,30 +80,48 @@ def sin_tan_for_Angle(angle, rad):
     res = np.multiply(res, rad)
     return res
 
-def drawDebug(pos, angle, win):
-    res = sin_tan_for_Angle(angle, 50)
+def draw_debug(pos, angle, win):
+    """
+    draws a triangle (symbolizing the sin/cos\n
+    of the current angle) on the given screen.
+    """
+    res = sin_cos_for_angle(angle, 50)
     pygame.draw.line(win, (0, 255, 0), (pos[0]-res[0], pos[1]), (pos[0]-res[0], pos[1]-res[1]))
     pygame.draw.line(win, (0, 255, 255), pos, (pos[0]-res[0], pos[1]))
     pygame.draw.line(win, (255, 0, 255), pos, (pos[0]-res[0], pos[1]-res[1]))
 
-def constrain(x, min_, max_):
-    return min(max(x, min_), max_)
+def constrain(val, min_, max_):
+    """
+    constrains a value into a given interval.
+    """
+    return min(max(val, min_), max_)
 
-def mapValue(value, inMin, inMax, outMin, outMax):
-    value = constrain(value, inMin, inMax)
-    #inRange = max(inMax - inMin,1)
-    inRange = inMax - inMin
-    outRange = outMax - outMin
-    valueScaled = float(value - inMin) / float(inRange)
-    return outMin + (valueScaled * outRange)
+def mapvalue(value, in_min, in_max, out_min, out_max):
+    """
+    maps the input value (in the given input interval)\n
+    to the given output interval
+    """
+    value = constrain(value, in_min, in_max)
+    in_range = in_max - in_min
+    out_range = out_max - out_min
+    value_scaled = float(value - in_min) / float(in_range)
+    return out_min + (value_scaled * out_range)
 
-def normalize(v):
-    norm = np.linalg.norm(v)
+def normalize(vec):
+    """
+    shrinks the vector to the length of 1
+    """
+    norm = np.linalg.norm(vec)
     if norm == 0:
-        return v
-    return v / norm
+        return vec
+    return vec / norm
 
-def getSurrounding(pos, diagonal):
+def get_surrounding(pos, diagonal):
+    """
+    returns all appending positions of the position.\n
+    if diagonal is given, it will return the diagonal\n
+    appending blocks as well.
+    """
     surrounding = []
     surrounding.append([pos[0] + 1, pos[1]]) # right
     surrounding.append([pos[0] - 1, pos[1]]) # left
@@ -110,12 +135,26 @@ def getSurrounding(pos, diagonal):
     return surrounding
 
 class AIPathFinder(threading.Thread):
-    def __init__(self, _map, AI):
+    """
+    multithreading task to find the path to a goal.
+    """
+    def __init__(self, _map, ai, diagonal=False):
+        threading.Thread.__init__(self)
         self.map = _map
-        self.AI = AI
-        super.__init__(self)
+        self.tank = ai
+        self.diagonal = diagonal
+        self.start = ai.repPos
+        self.end = ai.repPos
 
-    def run(start, end, diagonal=False):
+    def update(self, start, end):
+        """
+        update the start end end position for the path finder.\n
+        This should be called before running the task.
+        """
+        self.start = start
+        self.end = end
+
+    def run(self):
         """
         run(startpoint, endpoint, map)\n
         \n
@@ -136,66 +175,66 @@ class AIPathFinder(threading.Thread):
         max_i = map_size[0] * map_size[1]
 
         # initialize map with zeroes
-        filledMap = np.zeros(map_size)
+        filled_map = np.zeros(map_size)
         # add the start point as init point
-        newPoints = [start]
+        new_points = [self.start]
         # set the iteration to zero
         iteration = 0
 
-        filledMap[start[1], start[0]] = -1
-        while newPoints:
+        filled_map[self.start[1], self.start[0]] = -1
+        while new_points:
             # iterate through points
-            for point in newPoints[::-1]:
+            for point in new_points[::-1]:
                 # marking the current point with the current iteration
-                filledMap[point[1], point[0]] = iteration
+                filled_map[point[1], point[0]] = iteration
                 # add all adjacent positions
-                for newp in getSurrounding(point, diagonal):
-                    newPoints.append(newp)
+                for newp in get_surrounding(point, self.diagonal):
+                    new_points.append(newp)
                 # remove this point from list (is done)
-                newPoints.remove(point)
+                new_points.remove(point)
 
             # check for invalid points
-            for point in newPoints[::-1]:
+            for point in new_points[::-1]:
 
                 # if point is out of boundaries, remove it.
                 if not(point[0] in range(map_size[0]) and point[1] in range(map_size[1])):
-                    newPoints.remove(point)
+                    new_points.remove(point)
                     continue
 
                 # if value of point on self.map is not equal to 0 (=obstacle), remove it.
                 if self.map[point[1], point[0]] != 0:
-                    filledMap[point[1], point[0]] = max_i
-                    newPoints.remove(point)
+                    filled_map[point[1], point[0]] = max_i
+                    new_points.remove(point)
                     continue
 
-                # if point is already marked on filledMap, remove it.
-                if filledMap[point[1], point[0]] != 0 or np.array_equal(point, start):
-                    newPoints.remove(point)
+                # if point is already marked on filled_map, remove it.
+                if filled_map[point[1], point[0]] != 0 or np.array_equal(point, self.start):
+                    new_points.remove(point)
                     continue
 
             # next iteration, increase counter
             iteration += 1
 
         # find the way back to the start pos
-        iteration = filledMap[end[1], end[0]]
+        iteration = filled_map[self.end[1], self.end[0]]
         # add the last point (starting point) to path (path will be reversed at the end)
-        path = [end]
+        path = [self.end]
         # set the current point to end
-        actPoint = end
+        act_point = self.end
 
         while iteration >= 0:
 
-            for newp in getSurrounding(actPoint, diagonal):
+            for newp in get_surrounding(act_point, self.diagonal):
                 # if point is out of boundaries, remove it.
                 if not(newp[0] in range(map_size[0]) and newp[1] in range(map_size[1])):
                     continue
 
                 # otherwise, if point is marked with index lower than current iteration...
-                if filledMap[newp[1], newp[0]] < iteration:
+                if filled_map[newp[1], newp[0]] < iteration:
                     # ...replace current point with new,...
-                    actPoint = newp
+                    act_point = newp
                     # ...save new point to path...
-                    path.append(actPoint)
+                    path.append(act_point)
                     # and break. I only want to get the first point that has a lower index.
                     break
 
@@ -204,7 +243,7 @@ class AIPathFinder(threading.Thread):
         # remove the last item, which is the start position. We don't want to have that in the path
         path.pop()
         # returning the reversed path to get from "end --> start" to "start --> end"
-        self.AI.path = path[::-1]
+        self.tank.path = path[::-1]
 
 
 # class Representer():
@@ -217,30 +256,39 @@ class AIPathFinder(threading.Thread):
 
 
 class Tank():
+    """
+    super class for AI and Player. \n
+    has all the basic functionalities the tanks have.
+    """
     def __init__(self, imgset, coords, name, uid):
         self.pos = np.array(coords)
         self.angle = 0.0
         self.orig = imgset
         self.step = 2
         self.img = self.orig[0]
+        self.rect = self.img.get_rect()
         self.coll_rect = self.img.get_rect()
         self.coll_rect.width /= 2
         self.coll_rect.height /= 2
         self.coll_rect.center = self.img.get_rect().center
         self.img_len = len(imgset)
         self.count = 0
-        self.HP = HP_TANK
+        self.health = HP_TANK
         self.name = name
         self.slider = Slider(self, 5, 30, (0, 100), 40)
-        self.slider.update(self.HP)
-        self.rep = Representer(self, self.coll_rect)
+        self.slider.update(self.health)
+        # self.rep = Representer(self, self.coll_rect)
         self.border = self.coll_rect.width//2
-        self.DeleteFlag = False
+        self.delete_flag = False
         self.uid = uid
-        self.bulletMgr = BulletManager(self)
+        self.bullet_mgr = BulletManager(self)
+        self.rep_pos = np.divide(self.pos, GAPS).astype("int32")
 
     def draw(self, win):
-        self.bulletMgr.drawBullets(win)
+        """
+        draw the tank, its shells, slider (and debug).
+        """
+        self.bullet_mgr.draw_bullets(win)
 
         num = int(self.count)%self.img_len
         self.img = pygame.transform.rotate(self.orig[num], self.angle)
@@ -252,24 +300,28 @@ class Tank():
         self.slider.draw(win)
 
         if DEBUG:
-            drawDebug(self.pos, self.angle, win)
+            draw_debug(self.pos, self.angle, win)
             pygame.draw.rect(win, (255, 0, 0), self.coll_rect, 1)
 
     def move(self, keys, tanks, obstacles):
-        self.repPos = np.divide(self.pos, GAPS).astype("int32")
+        """
+        moves the tank, it's shells, slider and updates collideRect.
+        """
+        self.rep_pos = np.divide(self.pos, GAPS).astype("int32")
 
-        if self.HP > 0:
-            self.bulletMgr.moveBullets(tanks, obstacles)
+        if self.health > 0:
+            self.bullet_mgr.move_bullets(tanks, obstacles)
         else:
-            self.DeleteFlag = True
-        self.slider.update(self.HP)
-        self.updateCollideRect()
-        self.bulletMgr.createBullets(keys)
-
-    def updateCollideRect(self):
+            self.delete_flag = True
+        self.slider.update(self.health)
         self.coll_rect.center = self.pos
+        self.bullet_mgr.create_bullets(keys)
 
-    def correctMovement(self, obstacles):
+    def correct_movement(self, obstacles):
+        """
+        checks whether the tanks is inside any obstacle, and uses vectors to move\n
+        it into the coorect direction out of the obstacle.
+        """
         for obstacle in obstacles:
             if self.coll_rect.colliderect(obstacle.coll_rect):
                 diff = np.multiply(np.subtract((obstacle.coll_rect.center),
@@ -282,14 +334,18 @@ class Tank():
 
 
 class Player(Tank):
-    def __init__(self, imgset, coords, name, keyset, rep_matrix, uid):
+    """
+    inherits from Tank superclass.\n
+    has additionally a keyset to control it.
+    """
+    def __init__(self, imgset, coords, name, keyset, _, uid):
         super().__init__(imgset, coords, name, uid)
         self.keyset = keyset
-        self.bulletMgr.setPlayer(keyset[4])
+        self.bullet_mgr.set_player(keyset[4])
 
     def move(self, keys, tanks, obstacles):
-        if keys[self.keyset[0]] or keys[self.keyset[1]]:  #moving
-            change = sin_tan_for_Angle(self.angle, TANK_VEL)
+        if keys[self.keyset[0]] or keys[self.keyset[1]]:
+            change = sin_cos_for_angle(self.angle, TANK_VEL)
             if keys[self.keyset[0]]:
                 self.pos = np.subtract(self.pos, change)
                 self.count += 0.05
@@ -297,7 +353,7 @@ class Player(Tank):
             elif keys[self.keyset[1]]:
                 self.pos = np.add(self.pos, change)
                 self.count += 0.05
-            self.correctMovement(obstacles)
+            self.correct_movement(obstacles)
 
         if keys[self.keyset[2]]: #left
             self.angle += self.step
@@ -311,27 +367,35 @@ class Player(Tank):
 
 
 class AI(Tank):
+    """
+    inherits from Tank superclass.\n
+    has additionally a pathfinder.
+    """
     def __init__(self, imgset, coords, name, rep_matrix, uid):
         super().__init__(imgset, coords, name, uid)
-        self.pathfinder = AIPathFinder(rep_matrix)
+        self.pathfinder = AIPathFinder(rep_matrix, self, False)
         self.rep_matrix = rep_matrix
         self.path = []
-        self.updatePathFlag = False
-        self.bulletMgr.setAI()
-        self.repPos = []
+        self.update_path_flag = False
+        self.bullet_mgr.set_ai()
 
     def move(self, keys, tanks, obstacles):
 
-        if self.updatePathFlag:
-            self.path = findPath(self.repPos, tanks[0].obj.repPos, self.rep_matrix)
-            self.updatePathFlag = False
+        if self.update_path_flag:
+            self.pathfinder.update(self.rep_pos, tanks[0].rep_Pos)
+            self.path = self.pathfinder.start()
+            self.update_path_flag = False
 
-        # self.pos = np.subtract(self.pos,sin_tan_for_Angle(self.angle,TANK_VEL))
-        self.correctMovement(obstacles)
+        # self.pos = np.subtract(self.pos,sin_cos_for_angle(self.angle,TANK_VEL))
+        self.correct_movement(obstacles)
         super().move(0, tanks, obstacles)
 
 
 class Bullet():
+    """
+    Shell class. Instances are created by the BulletManager, which is controlled by\n
+    the Ai / Player Object. They have a constant speed, angle and damage.
+    """
     def __init__(self, angle, coords, img):
         self.img = pygame.transform.rotate(img, angle)
         self.pos = np.array(coords)
@@ -342,10 +406,17 @@ class Bullet():
         self.rect.center = self.pos
 
     def move(self):
-        change = sin_tan_for_Angle(self.angle, BULLET_VEL)
+        """
+        move the bullet with its velocity in \n
+        the direction it was spawned.
+        """
+        change = sin_cos_for_angle(self.angle, BULLET_VEL)
         self.pos = np.subtract(self.pos, change)
 
     def draw(self, win):
+        """
+        draw the bullet, if debug is on, draw hitbox, too.
+        """
         self.rect.center = self.pos
         win.blit(self.img, self.rect)
         if DEBUG:
@@ -353,21 +424,38 @@ class Bullet():
 
 
 class BulletManager():
+    """
+    belongs to a Tank Object. Has two modes: Player / AI\n
+    controls the shells of a tank (moving /drawing)
+    manages cooldown
+    """
     def __init__(self, player):
         self.player = player
         self.bullets = []
         self.alt = pygame.time.get_ticks()
         self.dmg = BULLET_DMG
         self.setup = False
+        self.type = ""
+        self.key = 0
 
-    def setAI(self):
+    def set_ai(self):
+        """
+        sets type of BulletManager to AI.\n
+        The bullet manager will shot a bullet whenever\n
+        possible instead of when the corresponding key is pressed. (player)
+        """
         if not self.setup:
             self.setup = True
             self.type = "AI"
         else:
             raise Warning("multiple setup of Bulletmgr is not valid")
 
-    def setPlayer(self, key):
+    def set_player(self, key):
+        """
+        sets type of BulletManager to AI.\n
+        The bullet manager will shot a bullet whenever\n
+        the corresponding key is pressed.\n
+        """
         if not self.setup:
             self.setup = True
             self.type = "Player"
@@ -375,19 +463,28 @@ class BulletManager():
         else:
             raise Warning("multiple setup of Bulletmgr is not valid")
 
-    def createBullets(self, keys):
-        time = pygame.time.get_ticks()
+    def create_bullets(self, keys):
+        """
+        creates a new bullet and appends it to the bullet list...\n
+        ...when the cooldown has expired\n
+        ...the corresponding key has been pressed (only player)\n
+        """
+        systime = pygame.time.get_ticks()
         #(if player and Key pressed) or if AI
         if (((self.type == "Player") and keys[self.key]) or (self.type == "AI")):
-            if time-BULLET_COOLDOWN > self.alt:
+            if systime - BULLET_COOLDOWN > self.alt:
                 angle = self.player.angle
-                change = returnXYforAngle(angle, -45)
+                change = sin_cos_for_angle(angle, -45)
                 newpos = np.add(self.player.pos, change)
-                newbullet = Bullet(angle, newpos, bullet)
+                newbullet = Bullet(angle, newpos, BULLET)
                 self.bullets.append(newbullet)
-                self.alt = time
+                self.alt = systime
 
-    def moveBullets(self, reps, obstacles):
+    def move_bullets(self, reps, obstacles):
+        """
+        calls the move() function for each bullet in its list.\n
+        For more info see docstring of Bullet.move()
+        """
         for bullet in self.bullets[::-1]:
             bullet.move()
 
@@ -416,44 +513,61 @@ class BulletManager():
                         self.bullets.remove(bullet)
                         break
 
-    def drawBullets(self, win):
+    def draw_bullets(self, win):
+        """
+        calls the draw() function for each bullet in its list.\n
+        For more info see docstring of Bullet.draw()
+        """
         for bullet in self.bullets:
             bullet.draw(win)
 
 
 class GameManager():
+    """
+    handles the game itself. It calls the move, draw, etc.\n
+    functions of the different instances and is responsible for\n
+    init and end.
+    """
     def __init__(self):
         pygame.init()
         self.win = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Tank Game")
-        pygame.display.set_icon(tank1[0])
+        pygame.display.set_icon(TANK_1[0])
         self.font = pygame.font.Font("Perfect_DOS_VGA_437.ttf", SCREEN[0]//15)
         self.debug_font = pygame.font.Font("Perfect_DOS_VGA_437.ttf", SCREEN[0]//30)
 
-        self.obstMgr = ObstacleManager(rock)
-        self.obstMgr.build()
+        self.obst_mgr = ObstacleManager(ROCK)
+        self.obst_mgr.build()
 
         keyset = [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d, pygame.K_SPACE]
 
         self.tanks = []
-        self.AIs = []
+        self.ais = []
 
-        player = Player(tank1, (400, 400), "Player", keyset, self.obstMgr.repMatrix, uid_create(10))
-        self.tanks.append(player.rep)
-        ai = AI(tank2, (100, 100), "AI", self.obstMgr.repMatrix, uid_create(10))
-        self.tanks.append(ai.rep)
-        self.AIs.append(ai.rep)
+        player = Player(TANK_1, (400, 400), "Player", keyset,
+                        self.obst_mgr.rep_matrix, uid_create(10))
+        self.tanks.append(player)
+        ai_instance = AI(TANK_2, (100, 100), "AI", self.obst_mgr.rep_matrix, uid_create(10))
+        self.tanks.append(ai_instance)
+        self.ais.append(ai_instance)
 
-    def redrawGameWindow(self):
-        self.win.blit(bg, (0, 0))
+    def redraw_game_window(self):
+        """
+        draws the different layers\n
+        (background, tanks, obstacles, shells, debug)
+        """
+        self.win.blit(BACKDROP, (0, 0))
         if DEBUG:
-            self.drawDebugText()
+            self.draw_debug_text()
         for tank in self.tanks:
             tank.obj.draw(self.win)
-        self.obstMgr.draw(self.win)
+        self.obst_mgr.draw(self.win)
         pygame.display.update()
 
     def main(self):
+        """
+        main loop of the game.
+        """
         pf_time = time()
         clock = pygame.time.Clock()
         run = True
@@ -473,7 +587,7 @@ class GameManager():
                     if rep.obj.uid == tank.obj.uid:
                         custom.remove(rep)
 
-                tank.obj.move(keys, custom, self.obstMgr.obstacles)
+                tank.obj.move(keys, custom, self.obst_mgr.obstacles)
                 if tank.obj.DeleteFlag:
                     self.tanks.remove(tank)
 
@@ -483,11 +597,11 @@ class GameManager():
                     winner = self.tanks[0].obj
 
             if (time() - pf_time) > AI_PATH_FINDING_COOLDOWN:
-                for ai in self.AIs:
-                    ai.obj.updatePathFlag = True
+                for ai_instance in self.ais:
+                    ai_instance.update_path_flag = True
                 pf_time = time()
 
-            self.redrawGameWindow()
+            self.redraw_game_window()
 
         if winner:
             text = self.font.render("The {} won the game!".format(winner.name), True, (255, 0, 0))
@@ -497,24 +611,27 @@ class GameManager():
             sleep(2)
         pygame.quit()
 
-    def drawDebugText(self):
-        bulletCount = 0
-        Player_HP = 0
-        AI_HP = 0
+    def draw_debug_text(self):
+        """
+        draws some infos to the bottom of the screen.
+        """
+        bullet_count = 0
+        player_health = 0
+        ai_health = 0
         for tank in self.tanks:
-            bulletCount += len(tank.obj.bulletMgr.bullets)
+            bullet_count += len(tank.obj.bullet_mgr.bullets)
             if tank.obj.name == "Player":
-                Player_HP = tank.obj.pos.astype("int32")
+                player_health = tank.obj.pos.astype("int32")
             if tank.obj.name == "AI":
-                AI_HP = tank.obj.pos.astype("int32")
+                ai_health = tank.obj.pos.astype("int32")
 
-        obstCount = len(self.obstMgr.obstacles)
-        obst_Size = self.obstMgr.repMatrix.shape
+        obst_count = len(self.obst_mgr.obstacles)
+        obst_size = self.obst_mgr.rep_matrix.shape
 
         text1 = "bullets: {} obstacles: {} obstacle_matrix: {} "
-        text1.format(bulletCount, obstCount, obst_Size)
+        text1.format(bullet_count, obst_count, obst_size)
         text2 = "HP AI: {} HP Pl: {}"
-        text2.format(AI_HP, Player_HP)
+        text2.format(ai_health, player_health)
         debug_text1 = self.debug_font.render(text1, True, (255, 0, 0))
         debug_text2 = self.debug_font.render(text2, True, (255, 0, 0))
         pos = np.array([5, HEIGHT*(9/10)])
@@ -526,6 +643,10 @@ class GameManager():
 
 
 class Slider():
+    """
+    shows the health of a tank on screen.\n
+    is always relative to tank obj.
+    """
     def __init__(self, obj, height, max_width, in_range, gap):
         self.obj = obj
         self.height = height
@@ -533,24 +654,35 @@ class Slider():
         self.in_min, self.in_max = in_range
         self.gap = gap
         self.val = self.in_max
+        self.color = pygame.Color(0, 255, 0)
 
-    def update(self, inputVal):
-        self.val = mapValue(inputVal, self.in_min, self.in_max, 0, self.max_width)
-        r = int(mapValue(inputVal, self.in_min, self.in_max, 255, 0))
-        g = int(mapValue(inputVal, self.in_min, self.in_max, 0, 255))
-        self.color = pygame.Color(r, g, 0)
+    def update(self, input_val):
+        """
+        update slider value.
+        """
+        self.val = mapvalue(input_val, self.in_min, self.in_max, 0, self.max_width)
+        red = int(mapvalue(input_val, self.in_min, self.in_max, 255, 0))
+        green = int(mapvalue(input_val, self.in_min, self.in_max, 0, 255))
+        self.color = pygame.Color(red, green, 0)
 
     def draw(self, win):
-        x, y = self.obj.rect.center
-        y += self.gap - self.height
-        x -= self.val/2
-        rect = pygame.Rect(x, y, self.val, self.height)
-        rect2 = pygame.Rect(x-2, y+5, self.val+4, self.height-10)
+        """
+        draw slider relative to tank obj.
+        """
+        temp_pos = self.obj.rect.center
+        temp_pos[1] += self.gap - self.height
+        temp_pos[0] -= self.val/2
+        rect = pygame.Rect(temp_pos[0], temp_pos[1], self.val, self.height)
+        rect2 = pygame.Rect(temp_pos[0]-2, temp_pos[1]+5, self.val+4, self.height-10)
         pygame.draw.rect(win, pygame.Color(100, 100, 100), rect2)
         pygame.draw.rect(win, self.color, rect)
 
 
 class Obstacle():
+    """
+    In-game obstacle. Is handled by ObstacleManage.\n
+    Has a hitbox for tanks and one for shells.
+    """
     def __init__(self, img, pos, sizes):
         self.coll_rect = pygame.Rect(pos[0], pos[1], sizes[0], sizes[1])
         self.shell_rect = self.coll_rect.copy()
@@ -561,6 +693,9 @@ class Obstacle():
         self.shell_rect.center = self.coll_rect.center
 
     def draw(self, win):
+        """
+        draw the obstacle and if necessary debug.
+        """
         win.blit(self.img, self.img_pos)
         if DEBUG:
             pygame.draw.rect(win, (0, 255, 255), self.coll_rect, 1)
@@ -568,22 +703,26 @@ class Obstacle():
 
 
 class ObstacleManager():
+    """
+    handles obstacles (=draws them)\n
+    Reads level data from files and builds map.
+    """
     def __init__(self, obst_img):
         self.obstacles = []
         self.levels = []
-        self.obstImg = obst_img
-        self.repMatrix = np.zeros(SIZES)
+        self.obst_img = obst_img
+        self.rep_matrix = np.zeros(SIZES)
 
         #get all .lvl files
-        for _, _, f in os.walk("../"):
-            for file in f:
+        for _, _, files in os.walk("../"):
+            for file in files:
                 if file.endswith(".lvl"):
-                    print(file)
+                    debug(file)
                     self.levels.append(file)
 
         #level validation
         for lvl in self.levels[::1]:
-            Valid = True
+            valid = True
 
             #retrieving level data
             lvl_file = open(lvl)
@@ -593,7 +732,7 @@ class ObstacleManager():
             if len(lines) != SIZES[1]: #number of lines not matching
                 print(("Error 0 while reading {}: Err0: number of lines invalid! \n"+
                        "Found {} lines instead of {}!\n").format(lvl, len(lines), SIZES[1]))
-                Valid = False
+                valid = False
             else:
                 for line in lines:
                     line = line.replace("\n", "")
@@ -601,13 +740,13 @@ class ObstacleManager():
                         print(("Error 1 while reading {}: Err1: length of line {} invalid! \n"+
                                "Length of line was {} chars instead of {} !\n")
                               .format(lvl, lines.index(line)+"\n", len(line), SIZES[1]))
-                        Valid = False
+                        valid = False
 
-            if not Valid:
+            if not valid:
                 self.levels[::1].remove(lvl)
 
         #checking for a valid level
-        if len(self.levels) < 1:
+        if not self.levels:
             print("No valid level file found! Exiting...")
             raise SystemExit()
 
@@ -616,6 +755,10 @@ class ObstacleManager():
         print("Level chosen: {}".format(self.level))
 
     def build(self):
+        """
+        build the map from chosen level file.\n
+        Writing simultanously in the representer-matrix.
+        """
         level_file = open(self.level)
         pos = np.zeros(2, dtype=int)
         grid = np.zeros(2, dtype=int)
@@ -624,18 +767,22 @@ class ObstacleManager():
             grid[0] = 0
             for char in line:
                 if char == "X":
-                    self.obstacles.append(Obstacle(self.obstImg, pos, GAPS))
-                    self.repMatrix[grid[1], grid[0]] = 1
+                    self.obstacles.append(Obstacle(self.obst_img, pos, GAPS))
+                    self.rep_matrix[grid[1], grid[0]] = 1
                 pos[0] += GAPS[0]
                 grid[0] += 1
             pos[1] += GAPS[1]
             grid[1] += 1
 
     def draw(self, win):
+        """
+        draw all the obstacles.\n
+        For more details see Obstacle.draw()
+        """
         for obstacle in self.obstacles:
             obstacle.draw(win)
 
 
 if __name__ == "__main__":
-    gameMgr = GameManager()
-    gameMgr.main()
+    GAME_MGR = GameManager()
+    GAME_MGR.main()
