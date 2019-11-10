@@ -3,7 +3,7 @@
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
     "python.linting.pylintArgs": [
-        "----extension-pkg-whitelist=1xml"
-        ],
-        "editor.fontSize": 18
+        "--extension-pkg-whitelist=lxml"  // The extension is "lxml" not "1xml"
+    ],
+    "editor.fontSize": 18
 }
