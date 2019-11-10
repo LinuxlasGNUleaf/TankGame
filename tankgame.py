@@ -4,13 +4,14 @@ from random import randint
 import os
 import numpy as np
 from time import time,sleep
+import threading
 
 # ============================>> CONFIG <<============================
 
 # basic video settings
 WIDTH = 500
 HEIGHT = 500
-DEBUG = False
+DEBUG = True
 
 # game settings
 
@@ -35,6 +36,7 @@ AI_PATH_FINDING_COOLDOWN = 1
 # ====================================================================
 SIZES = np.array([SIZE_X,SIZE_Y])
 SCREEN = np.array([WIDTH,HEIGHT])
+GAPS = np.divide(SCREEN,SIZES).astype("int32")
 
 #Loading images 
 bg = pygame.image.load("bg.jpg")
@@ -42,6 +44,10 @@ tank1 = [pygame.image.load("tank1.png"),pygame.image.load("tank2.png")]
 tank2 = [pygame.image.load("tank3.png"),pygame.image.load("tank4.png")]
 bullet = pygame.image.load("bullet.png")
 rock = pygame.image.load("rock.png")
+
+def debug(s):
+    if DEBUG:
+        print(s)
 
 def UID_create(len):
     UID = ""
@@ -93,74 +99,80 @@ def getSurrounding(pos,diagonal):
         surrounding.append([pos[0] - 1,pos[1] + 1]) # left - down
     return surrounding
 
-def findPath(start,end,_map,diagonal=False):
-    """
-    findPath(startpoint, endpoint, map)\n
-    \n
-    startpoint -> array with len 2, representing start position on map\n
-    endpoint -> array with len 2, representing start position on map\n
-    diagonal -> boolean, default false, switching between including diagonals in pathfinding or not.\n
-    \n
-    uses a floodfill algorithm to find the shortest between two points on a two-dimensional array.\n
-    map is used as the input matrix, representing "walkable" and "unwalkable" areas. Each field with\n
-    a value bigger than zero will be handled as "unwalkable" and will not be part of the returning path.\n
-    \n
-    The output will be a 2d-array, but each index is a position, representing the path to the goal.\n
-    The start position will NOT be included in the path, but the end position will be.\n
-    """
+class AIPathFinder(threading.Thread):
+    def __init__(self,_map,AI):
+        self.map = _map
+        self.AI = AI
+        super.__init__(self)
 
-    SIZES = np.shape(_map)
-    max_i = SIZES[0] * SIZES[1]
+    def run(start,end,diagonal=False):
+        """
+        run(startpoint, endpoint, map)\n
+        \n
+        startpoint -> array with len 2, representing start position on map\n
+        endpoint -> array with len 2, representing start position on map\n
+        diagonal -> boolean, default false, switching between including diagonals in pathfinding or not.\n
+        \n
+        uses a floodfill algorithm to find the shortest between two points on a two-dimensional array.\n
+        map is used as the input matrix, representing "walkable" and "unwalkable" areas. Each field with\n
+        a value bigger than zero will be handled as "unwalkable" and will not be part of the returning path.\n
+        \n
+        The output will be a 2d-array, but each index is a position, representing the path to the goal.\n
+        The start position will NOT be included in the path, but the end position will be.\n
+        """
 
-    filledMap = np.zeros(SIZES) # initialize map with zeroes
-    newPoints = [start] # add the start point as init point
-    iteration = 0 # set the iteration to zero
-    filledMap[start[1],start[0]] = -1
-    while newPoints:
-        for point in newPoints[::-1]: # iterate through points
-            filledMap[point[1],point[0]] = iteration # marking athe current point with the current iteration
-            for newp in getSurrounding(point,diagonal): # add all adjacent positions
-                newPoints.append(newp)
-            newPoints.remove(point) # remove this point from list (is done)#
+        map_size = np.shape(self.map)
+        max_i = map_size[0] * map_size[1]
 
-        for point in newPoints[::-1]: # check for invalid points
+        filledMap = np.zeros(map_size) # initialize map with zeroes
+        newPoints = [start] # add the start point as init point
+        iteration = 0 # set the iteration to zero
+        filledMap[start[1],start[0]] = -1
+        while newPoints:
+            for point in newPoints[::-1]: # iterate through points
+                filledMap[point[1],point[0]] = iteration # marking athe current point with the current iteration
+                for newp in getSurrounding(point,diagonal): # add all adjacent positions
+                    newPoints.append(newp)
+                newPoints.remove(point) # remove this point from list (is done)#
 
-            if not(point[0] in range(SIZES[0]) and point[1] in range(SIZES[1])): # if point is out of boundaries, remove it.
-                newPoints.remove(point)
-                continue
+            for point in newPoints[::-1]: # check for invalid points
 
-            if _map[point[1],point[0]] != 0: # if value of point on _map is not equal to 0 (=obstacle), remove it.
-                filledMap[point[1],point[0]] = max_i
-                newPoints.remove(point)
-                continue
-            
-            if filledMap[point[1],point[0]] != 0 or point == start: # if point is already marked on filledMap, remove it.
-                newPoints.remove(point)
-                continue
+                if not(point[0] in range(map_size[0]) and point[1] in range(map_size[1])): # if point is out of boundaries, remove it.
+                    newPoints.remove(point)
+                    continue
 
-        iteration += 1 # next iteration, increase counter
+                if self.map[point[1],point[0]] != 0: # if value of point on self.map is not equal to 0 (=obstacle), remove it.
+                    filledMap[point[1],point[0]] = max_i
+                    newPoints.remove(point)
+                    continue
 
-    # find the way back to the start pos
-    iteration = filledMap[end[1],end[0]]
-    path = [end] # add the last point (starting point) to path (path will be reversed at the end)
-    actPoint = end # set the current point to end
+                if filledMap[point[1],point[0]] != 0 or np.array_equal(point,start): # if point is already marked on filledMap, remove it.
+                    newPoints.remove(point)
+                    continue
 
-    while True:
+            iteration += 1 # next iteration, increase counter
 
-        for newp in getSurrounding(actPoint,diagonal):
-            if not(newp[0] in range(SIZES[0]) and newp[1] in range(SIZES[1])): # if point is out of boundaries, remove it.
-                continue
+        # find the way back to the start pos
+        iteration = filledMap[end[1],end[0]]
+        path = [end] # add the last point (starting point) to path (path will be reversed at the end)
+        actPoint = end # set the current point to end
 
-            if filledMap[newp[1],newp[0]] < iteration: # otherwise, if point is marked with index lower than current iteration...
-                actPoint = newp # ...replace current point with new,...
-                path.append(actPoint) # ...save new point to path...
-                break # and break. I only want to get the first point that has a lower index.
+        while iteration >= 0:
 
-        iteration -= 1 # decrease the index
-        if iteration < 0: # if the index is lower than zero now, the start point is reached and the algorithm will exit.
-            break
-    path.pop() # remove the last item, which is the start position. We don't want to have that in the path
-    return path[::-1] # returning the reversed path to get from "end --> start" to "start --> end"
+            for newp in getSurrounding(actPoint,diagonal):
+                if not(newp[0] in range(map_size[0]) and newp[1] in range(map_size[1])): # if point is out of boundaries, remove it.
+                    continue
+
+                if filledMap[newp[1],newp[0]] < iteration: # otherwise, if point is marked with index lower than current iteration...
+                    actPoint = newp # ...replace current point with new,...
+                    path.append(actPoint) # ...save new point to path...
+                    break # and break. I only want to get the first point that has a lower index.
+
+            iteration -= 1 # decrease the index
+
+        path.pop() # remove the last item, which is the start position. We don't want to have that in the path
+        self.AI.path = path[::-1] # returning the reversed path to get from "end --> start" to "start --> end"
+
 
 class Representer():
     def __init__(self,obj,hitbox):
@@ -211,7 +223,8 @@ class Tank():
             pygame.draw.rect(win,(255,0,0),self.coll_rect,1)
     
     def move(self,keys,tanks,obstacles):
-        
+        self.repPos = np.divide(self.pos,GAPS).astype("int32")
+
         if self.HP > 0:
             self.bulletMgr.moveBullets(tanks,obstacles)
         else:
@@ -266,17 +279,20 @@ class Player(Tank):
 class AI(Tank):
     def __init__(self,imgset,coords,name,rep_matrix,uid):
         super().__init__(imgset,coords,name,uid)
+        self.pathfinder = AIPathFinder(rep_matrix)
         self.rep_matrix = rep_matrix
         self.path = []
         self.updatePathFlag = False
         self.bulletMgr.setAI()
+        self.repPos = []
 
     def move(self,keys,tanks,obstacles):
-        if self.updatePathFlag:
-            path = findPath([0,0],[9,9],self.rep_matrix)
-            self.updatePathFlag = False
 
-        self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
+        if self.updatePathFlag:
+            self.path = findPath(self.repPos,tanks[0].obj.repPos,self.rep_matrix)
+            self.updatePathFlag = False
+        
+        # self.pos = np.subtract(self.pos,returnXYforAngle(self.angle,TANK_VEL))
         self.correctMovement(obstacles)
         super().move(0,tanks,obstacles)
 
@@ -378,7 +394,7 @@ class GameManager():
         self.font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//15)
         self.debug_font = pygame.font.Font("Perfect_DOS_VGA_437.ttf",SCREEN[0]//30)
 
-        self.obstMgr = ObstacleManager(SIZES,rock)
+        self.obstMgr = ObstacleManager(rock)
         self.obstMgr.build()
 
         keyset = [pygame.K_w,pygame.K_s,pygame.K_a,pygame.K_d,pygame.K_SPACE]
@@ -514,13 +530,11 @@ class Obstacle():
 
 
 class ObstacleManager():
-    def __init__(self,sizes,obst_img):
+    def __init__(self,obst_img):
         self.obstacles = []
         self.levels = []
-        self.sizes = sizes 
-        self.gaps = np.divide(SCREEN,sizes).astype("int32")
         self.obstImg = obst_img
-        self.repMatrix = np.zeros(self.sizes)
+        self.repMatrix = np.zeros(SIZES)
 
         #get all .lvl files
         for _,_,f in os.walk("../"):
@@ -538,14 +552,14 @@ class ObstacleManager():
             lines = lvl_file.readlines()
             lvl_file.close()
 
-            if len(lines) != self.sizes[1]: #number of lines not matching
-                print("Error 0 while reading {}: Err0: number of lines invalid! \Found {} lines instead of {}!\n".format(lvl,len(lines),self.sizes[1]))
+            if len(lines) != SIZES[1]: #number of lines not matching
+                print("Error 0 while reading {}: Err0: number of lines invalid! \Found {} lines instead of {}!\n".format(lvl,len(lines),SIZES[1]))
                 isValid = False
             else:
                 for line in lines:
                     line = line.replace("\n","")
-                    if len(line) != self.sizes[0]: #number of columns not matching
-                        print("Error 1 while reading {}: Err1: length of line {} invalid! \nLength of line was {} chars instead of {} !\n".format(lvl,lines.index(line)+"\n",len(line),self.sizes[1]))
+                    if len(line) != SIZES[0]: #number of columns not matching
+                        print("Error 1 while reading {}: Err1: length of line {} invalid! \nLength of line was {} chars instead of {} !\n".format(lvl,lines.index(line)+"\n",len(line),SIZES[1]))
                         isValid = False
         
             if not(Valid):
@@ -569,11 +583,11 @@ class ObstacleManager():
             grid[0] = 0
             for char in line:
                 if char == "X":
-                    self.obstacles.append(Obstacle(self.obstImg,pos,self.gaps))
+                    self.obstacles.append(Obstacle(self.obstImg,pos,GAPS))
                     self.repMatrix[grid[1],grid[0]] = 1
-                pos[0] += self.gaps[0]
+                pos[0] += GAPS[0]
                 grid[0] += 1
-            pos[1]+= self.gaps[1]
+            pos[1]+= GAPS[1]
             grid[1] += 1
     
     def draw(self,win):
