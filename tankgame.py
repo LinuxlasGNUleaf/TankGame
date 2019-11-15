@@ -40,6 +40,7 @@ HP_TANK = 100
 
 # advanced pathfinding settings
 AI_PATH_FINDING_COOLDOWN = 1
+DIAGONAL = False
 # ====================================================================
 SIZES = np.array([SIZE_X, SIZE_Y])
 SCREEN = np.array([WIDTH, HEIGHT])
@@ -68,7 +69,7 @@ def uid_create(uidlen):
         uid += str(randint(0, 9))
     return uid
 
-def sin_cos_for_angle(angle, rad):
+def sin_cos_for_angle(angle, vel):
     """
     returns a array of sin(x) and cos(x) of a given angle.\n
     multiplies these values with the radius.
@@ -77,7 +78,7 @@ def sin_cos_for_angle(angle, rad):
     res = np.zeros(2)
     res[0] = math.sin(rad)
     res[1] = math.cos(rad)
-    res = np.multiply(res, rad)
+    res = np.multiply(res, vel)
     return res
 
 def draw_debug(pos, angle, win):
@@ -116,7 +117,7 @@ def normalize(vec):
         return vec
     return vec / norm
 
-def get_surrounding(pos, diagonal):
+def get_surrounding(pos):
     """
     returns all appending positions of the position.\n
     if diagonal is given, it will return the diagonal\n
@@ -127,68 +128,74 @@ def get_surrounding(pos, diagonal):
     surrounding.append([pos[0] - 1, pos[1]]) # left
     surrounding.append([pos[0], pos[1] + 1]) # down
     surrounding.append([pos[0], pos[1] - 1]) # up
-    if diagonal:
+    if DIAGONAL:
         surrounding.append([pos[0] + 1, pos[1] + 1]) # right - down
         surrounding.append([pos[0] - 1, pos[1] - 1]) # left - up
         surrounding.append([pos[0] + 1, pos[1] - 1]) # right - up
         surrounding.append([pos[0] - 1, pos[1] + 1]) # left - down
     return surrounding
 
+def get_pos_from_rep(pos):
+    """
+    converts representer position to normal position
+    """
+    rep_add = [1, 1]
+    pos1 = np.multiply(pos, GAPS)
+    pos2 = np.add(pos, rep_add)
+    pos2 = np.multiply(pos2, GAPS)
+    pos3 = np.add(pos1, pos2)
+    pos3 = np.divide(pos3, 2)
+    return pos3
+
 class AIPathFinder(threading.Thread):
     """
-    multithreading task to find the path to a goal.
+    AIPathFinder(ai_instance)\n
+    \n
+    AI object requirements:\n
+    - a rep_matrix which is the map for pathfinding\n
+    - a rep_pos attribute (1d array with len 2 ==> 2d-pos)\n
+    - a target attribute with a rep_pos attr (same requirements as above)\n
+    - a new_path attribute, to write path to\n
+    diagonal -> boolean, default false, switching between including diagonals in
+    pathfinding or not.\n\n
+    it uses a floodfill algorithm to find the shortest between two points\n
+    on a two-dimensional array. map is used as the input matrix, representing\n
+    "walkable" and "unwalkable" areas. Each field with a value bigger than zero\n
+    will be handled as "unwalkable" and will not be part of the returning path.\n\n
+    The output will be a 2d-array, but each index is a position, representing the\n
+    path to the goal.The start position will NOT be included in the path, but the\n
+    end position will be.\n
     """
-    def __init__(self, _map, ai, diagonal=False):
+    def __init__(self, ai_instance):
         threading.Thread.__init__(self)
-        self.map = _map
-        self.tank = ai
-        self.diagonal = diagonal
-        self.start = ai.repPos
-        self.end = ai.repPos
-
-    def update(self, start, end):
-        """
-        update the start end end position for the path finder.\n
-        This should be called before running the task.
-        """
-        self.start = start
-        self.end = end
+        self.ai_instance = ai_instance
+        self.target = ai_instance.target
+        if self.target:
+            self.endpos = self.target.rep_pos
+        self.startpos = ai_instance.rep_pos
+        self.map = self.ai_instance.rep_matrix
+        self.map_size = np.shape(self.map)
 
     def run(self):
-        """
-        run(startpoint, endpoint, map)\n
-        \n
-        startpoint -> array with len 2, representing start position on map\n
-        endpoint -> array with len 2, representing start position on map\n
-        diagonal -> boolean, default false, switching between including diagonals in
-        pathfinding or not.\n\n
-        it uses a floodfill algorithm to find the shortest between two points\n
-        on a two-dimensional array. map is used as the input matrix, representing\n
-        "walkable" and "unwalkable" areas. Each field with a value bigger than zero\n
-        will be handled as "unwalkable" and will not be part of the returning path.\n\n
-        The output will be a 2d-array, but each index is a position, representing the\n
-        path to the goal.The start position will NOT be included in the path, but the\n
-        end position will be.\n
-        """
-
-        map_size = np.shape(self.map)
-        max_i = map_size[0] * map_size[1]
+        if not self.target:
+            return
+        max_i = self.map_size[0] * self.map_size[1]
 
         # initialize map with zeroes
-        filled_map = np.zeros(map_size)
+        filled_map = np.zeros(self.map_size)
         # add the start point as init point
-        new_points = [self.start]
+        new_points = [self.startpos]
         # set the iteration to zero
         iteration = 0
 
-        filled_map[self.start[1], self.start[0]] = -1
+        filled_map[self.startpos[1], self.startpos[0]] = -1
         while new_points:
             # iterate through points
             for point in new_points[::-1]:
                 # marking the current point with the current iteration
                 filled_map[point[1], point[0]] = iteration
                 # add all adjacent positions
-                for newp in get_surrounding(point, self.diagonal):
+                for newp in get_surrounding(point):
                     new_points.append(newp)
                 # remove this point from list (is done)
                 new_points.remove(point)
@@ -197,18 +204,18 @@ class AIPathFinder(threading.Thread):
             for point in new_points[::-1]:
 
                 # if point is out of boundaries, remove it.
-                if not(point[0] in range(map_size[0]) and point[1] in range(map_size[1])):
+                if not(point[0] in range(self.map_size[0]) and point[1] in range(self.map_size[1])):
                     new_points.remove(point)
                     continue
 
-                # if value of point on self.map is not equal to 0 (=obstacle), remove it.
+                # if value of point on _map is not equal to 0 (=obstacle), remove it.
                 if self.map[point[1], point[0]] != 0:
                     filled_map[point[1], point[0]] = max_i
                     new_points.remove(point)
                     continue
 
                 # if point is already marked on filled_map, remove it.
-                if filled_map[point[1], point[0]] != 0 or np.array_equal(point, self.start):
+                if filled_map[point[1], point[0]] != 0 or np.array_equal(point, self.startpos):
                     new_points.remove(point)
                     continue
 
@@ -216,17 +223,17 @@ class AIPathFinder(threading.Thread):
             iteration += 1
 
         # find the way back to the start pos
-        iteration = filled_map[self.end[1], self.end[0]]
+        iteration = filled_map[self.endpos[1], self.endpos[0]]
         # add the last point (starting point) to path (path will be reversed at the end)
-        path = [self.end]
+        path = [self.endpos]
         # set the current point to end
-        act_point = self.end
+        act_point = self.endpos
 
         while iteration >= 0:
 
-            for newp in get_surrounding(act_point, self.diagonal):
+            for newp in get_surrounding(act_point):
                 # if point is out of boundaries, remove it.
-                if not(newp[0] in range(map_size[0]) and newp[1] in range(map_size[1])):
+                if not(newp[0] in range(self.map_size[0]) and newp[1] in range(self.map_size[1])):
                     continue
 
                 # otherwise, if point is marked with index lower than current iteration...
@@ -240,20 +247,16 @@ class AIPathFinder(threading.Thread):
 
             iteration -= 1 # decrease the index
 
-        # remove the last item, which is the start position. We don't want to have that in the path
+        # remove the last item, which is the self.startpos position.
+        # We don't want to have that in the path
         path.pop()
-        # returning the reversed path to get from "end --> start" to "start --> end"
-        self.tank.path = path[::-1]
-
-
-# class Representer():
-#     def __init__(self,obj,hitbox):
-#         self.obj = obj
-#         self.hitbox = hitbox
-
-#     def update(self):
-#         self.hitbox = self.obj.coll_rect
-
+        # returning the reversed path to get from
+        # "self.endpos --> self.startpos" to "self.startpos --> self.endpos"
+        new_path = []
+        for entry in path:
+            new_path.append(get_pos_from_rep(entry))
+        self.ai_instance.new_path = new_path[::-1]
+        return
 
 class Tank():
     """
@@ -267,18 +270,17 @@ class Tank():
         self.step = 2
         self.img = self.orig[0]
         self.rect = self.img.get_rect()
-        self.coll_rect = self.img.get_rect()
-        self.coll_rect.width /= 2
-        self.coll_rect.height /= 2
-        self.coll_rect.center = self.img.get_rect().center
+        self.hitbox = self.img.get_rect()
+        self.hitbox.width /= 2
+        self.hitbox.height /= 2
+        self.hitbox.center = self.img.get_rect().center
         self.img_len = len(imgset)
         self.count = 0
         self.health = HP_TANK
         self.name = name
         self.slider = Slider(self, 5, 30, (0, 100), 40)
         self.slider.update(self.health)
-        # self.rep = Representer(self, self.coll_rect)
-        self.border = self.coll_rect.width//2
+        self.border = self.hitbox.width//2
         self.delete_flag = False
         self.uid = uid
         self.bullet_mgr = BulletManager(self)
@@ -301,7 +303,7 @@ class Tank():
 
         if DEBUG:
             draw_debug(self.pos, self.angle, win)
-            pygame.draw.rect(win, (255, 0, 0), self.coll_rect, 1)
+            pygame.draw.rect(win, (255, 0, 0), self.hitbox, 1)
 
     def move(self, keys, tanks, obstacles):
         """
@@ -314,8 +316,9 @@ class Tank():
         else:
             self.delete_flag = True
         self.slider.update(self.health)
-        self.coll_rect.center = self.pos
+        self.hitbox.center = self.pos
         self.bullet_mgr.create_bullets(keys)
+        self.correct_movement(obstacles)
 
     def correct_movement(self, obstacles):
         """
@@ -323,9 +326,9 @@ class Tank():
         it into the coorect direction out of the obstacle.
         """
         for obstacle in obstacles:
-            if self.coll_rect.colliderect(obstacle.coll_rect):
-                diff = np.multiply(np.subtract((obstacle.coll_rect.center),
-                                               (self.coll_rect.center)), -1)
+            if self.hitbox.colliderect(obstacle.hitbox):
+                diff = np.multiply(np.subtract((obstacle.hitbox.center),
+                                               (self.hitbox.center)), -1)
                 diff = normalize(diff)
                 self.pos = np.add(diff, self.pos)
 
@@ -373,22 +376,31 @@ class AI(Tank):
     """
     def __init__(self, imgset, coords, name, rep_matrix, uid):
         super().__init__(imgset, coords, name, uid)
-        self.pathfinder = AIPathFinder(rep_matrix, self, False)
         self.rep_matrix = rep_matrix
         self.path = []
         self.update_path_flag = False
         self.bullet_mgr.set_ai()
+        self.new_path = []
+        self.target = 0
+        self.thread = AIPathFinder(self,)
+        self.thread.start()
 
     def move(self, keys, tanks, obstacles):
-
+        self.target = tanks[0]
         if self.update_path_flag:
-            self.pathfinder.update(self.rep_pos, tanks[0].rep_Pos)
-            self.path = self.pathfinder.start()
+            self.thread = AIPathFinder(self,)
+            self.thread.start()
             self.update_path_flag = False
-
-        # self.pos = np.subtract(self.pos,sin_cos_for_angle(self.angle,TANK_VEL))
+        self.path = self.new_path
         self.correct_movement(obstacles)
         super().move(0, tanks, obstacles)
+
+    def draw(self, win):
+        super().draw(win)
+        if DEBUG:
+            for point in self.path:
+                rect = pygame.Rect(point[0]-10, point[1]-10, 20, 20)
+                pygame.draw.rect(win, (255, 255, 255), rect, 1)
 
 
 class Bullet():
@@ -480,7 +492,7 @@ class BulletManager():
                 self.bullets.append(newbullet)
                 self.alt = systime
 
-    def move_bullets(self, reps, obstacles):
+    def move_bullets(self, tanks, obstacles):
         """
         calls the move() function for each bullet in its list.\n
         For more info see docstring of Bullet.move()
@@ -496,10 +508,9 @@ class BulletManager():
 
             #checking for collision with another tank
             exist = True
-            for rep in reps:
-                tank = rep.obj
-                if bullet.rect.colliderect(rep.hitbox) and tank != self.player:
-                    tank.HP -= self.dmg
+            for tank in tanks:
+                if bullet.rect.colliderect(tank.hitbox) and tank != self.player:
+                    tank.health -= self.dmg
                     exist = False
 
             if not exist:
@@ -560,7 +571,7 @@ class GameManager():
         if DEBUG:
             self.draw_debug_text()
         for tank in self.tanks:
-            tank.obj.draw(self.win)
+            tank.draw(self.win)
         self.obst_mgr.draw(self.win)
         pygame.display.update()
 
@@ -583,18 +594,18 @@ class GameManager():
             for tank in self.tanks[::1]:
                 custom = self.tanks.copy()
 
-                for rep in custom[::1]:
-                    if rep.obj.uid == tank.obj.uid:
-                        custom.remove(rep)
+                for ctank in custom[::1]:
+                    if ctank.uid == tank.uid:
+                        custom.remove(ctank)
 
-                tank.obj.move(keys, custom, self.obst_mgr.obstacles)
-                if tank.obj.DeleteFlag:
+                tank.move(keys, custom, self.obst_mgr.obstacles)
+                if tank.delete_flag:
                     self.tanks.remove(tank)
 
             if len(self.tanks) <= 1:
                 run = False
                 if len(self.tanks) == 1:
-                    winner = self.tanks[0].obj
+                    winner = self.tanks[0]
 
             if (time() - pf_time) > AI_PATH_FINDING_COOLDOWN:
                 for ai_instance in self.ais:
@@ -619,11 +630,11 @@ class GameManager():
         player_health = 0
         ai_health = 0
         for tank in self.tanks:
-            bullet_count += len(tank.obj.bullet_mgr.bullets)
-            if tank.obj.name == "Player":
-                player_health = tank.obj.pos.astype("int32")
-            if tank.obj.name == "AI":
-                ai_health = tank.obj.pos.astype("int32")
+            bullet_count += len(tank.bullet_mgr.bullets)
+            if tank.name == "Player":
+                player_health = tank.pos.astype("int32")
+            if tank.name == "AI":
+                ai_health = tank.pos.astype("int32")
 
         obst_count = len(self.obst_mgr.obstacles)
         obst_size = self.obst_mgr.rep_matrix.shape
@@ -669,7 +680,7 @@ class Slider():
         """
         draw slider relative to tank obj.
         """
-        temp_pos = self.obj.rect.center
+        temp_pos = list(self.obj.rect.center)
         temp_pos[1] += self.gap - self.height
         temp_pos[0] -= self.val/2
         rect = pygame.Rect(temp_pos[0], temp_pos[1], self.val, self.height)
@@ -684,13 +695,13 @@ class Obstacle():
     Has a hitbox for tanks and one for shells.
     """
     def __init__(self, img, pos, sizes):
-        self.coll_rect = pygame.Rect(pos[0], pos[1], sizes[0], sizes[1])
-        self.shell_rect = self.coll_rect.copy()
+        self.hitbox = pygame.Rect(pos[0], pos[1], sizes[0], sizes[1])
+        self.shell_rect = self.hitbox.copy()
         self.img = pygame.transform.rotate(img, randint(0, 359))
         self.img_pos = np.subtract(pos, np.divide(sizes, 3))
         self.shell_rect.width /= 2
         self.shell_rect.height /= 2
-        self.shell_rect.center = self.coll_rect.center
+        self.shell_rect.center = self.hitbox.center
 
     def draw(self, win):
         """
@@ -698,7 +709,7 @@ class Obstacle():
         """
         win.blit(self.img, self.img_pos)
         if DEBUG:
-            pygame.draw.rect(win, (0, 255, 255), self.coll_rect, 1)
+            pygame.draw.rect(win, (0, 255, 255), self.hitbox, 1)
             pygame.draw.rect(win, (255, 0, 255), self.shell_rect, 1)
 
 
