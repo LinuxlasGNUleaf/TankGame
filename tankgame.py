@@ -39,7 +39,7 @@ AI_TURN_VEL = 1
 HP_TANK = 100
 
 # advanced pathfinding settings
-AI_PATH_FINDING_COOLDOWN = 1
+AI_PATH_FINDING_COOLDOWN = 0.5
 DIAGONAL = False
 
 # fonts
@@ -48,6 +48,7 @@ STD_FONT = "Perfect_DOS_VGA_437.ttf"
 SIZES = np.array([SIZE_X, SIZE_Y])
 SCREEN = np.array([WIDTH, HEIGHT])
 GAPS = np.divide(SCREEN, SIZES).astype("int32")
+print(GAPS)
 
 #Loading images
 BACKDROP = pygame.image.load("bg.jpg")
@@ -181,7 +182,7 @@ class AIPathFinder(threading.Thread):
     def run(self):
         while self.is_running:
             self.find_path()
-            sleep(1)
+            sleep(AI_PATH_FINDING_COOLDOWN)
         print("stopped path-finding thread for "+self.ai_instance.name)
 
     def find_path(self):
@@ -408,20 +409,29 @@ class AI(Tank):
         self.target = tanks[0]
 
         self.path = self.new_path
-        # if self.path:
-        #     diff = np.subtract(self.pos, self.path[0])
-        #     print(diff)
-        #     # if abs(diff[0]) < GAPS[0] and abs(diff[1]) < GAPS[1]:
-        #     #     self.path.pop(0)
-        #     self.angle = math.atan2(diff[1], diff[0])
+        if self.path:
+            diff = np.subtract(self.path[0], self.pos).astype("int32")
+            if math.sqrt(diff[0]**2 + diff[1]**2) < math.sqrt((GAPS[0]/2)**2 + (GAPS[1]/2)**2):
+                self.path.pop(0)
+            else:
+                self.angle = math.degrees(math.atan2(diff[1], -diff[0])) + 90
+            self.pos = np.subtract(self.pos, sin_cos_for_angle(self.angle, TANK_VEL))
         super().move(0, tanks, obstacles)
 
     def draw(self, win):
         super().draw(win)
         if DEBUG:
-            for point in self.path:
-                rect = pygame.Rect(point[0]-10, point[1]-10, 20, 20)
-                pygame.draw.rect(win, (255, 255, 255), rect, 1)
+            if len(self.path) > 1:
+                maxl = len(self.path)-1
+                i = 0
+                for point in self.path:
+                    rect = pygame.Rect(point[0]-10, point[1]-10, 20, 20)
+                    col_val = mapvalue(i, 0, maxl, 0, 255)
+                    pygame.draw.rect(win, (col_val, col_val, col_val), rect, 2)
+                    i += 1
+            elif self.path:
+                rect = pygame.Rect(self.path[0][0]-10, self.path[0][1]-10, 20, 20)
+                pygame.draw.rect(win, (255, 255, 255), rect, 2)
 
 
 class Bullet():
