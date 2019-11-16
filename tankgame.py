@@ -41,6 +41,9 @@ HP_TANK = 100
 # advanced pathfinding settings
 AI_PATH_FINDING_COOLDOWN = 1
 DIAGONAL = False
+
+# fonts
+STD_FONT = "Perfect_DOS_VGA_437.ttf"
 # ====================================================================
 SIZES = np.array([SIZE_X, SIZE_Y])
 SCREEN = np.array([WIDTH, HEIGHT])
@@ -139,9 +142,8 @@ def get_pos_from_rep(pos):
     """
     converts representer position to normal position
     """
-    rep_add = [1, 1]
     pos1 = np.multiply(pos, GAPS)
-    pos2 = np.add(pos, rep_add)
+    pos2 = np.add(pos, [1, 1])
     pos2 = np.multiply(pos2, GAPS)
     pos3 = np.add(pos1, pos2)
     pos3 = np.divide(pos3, 2)
@@ -169,16 +171,30 @@ class AIPathFinder(threading.Thread):
     def __init__(self, ai_instance):
         threading.Thread.__init__(self)
         self.ai_instance = ai_instance
-        self.target = ai_instance.target
-        if self.target:
-            self.endpos = self.target.rep_pos
-        self.startpos = ai_instance.rep_pos
+        self.is_running = True
+        self.target = 0
+        self.startpos = [0, 0]
+        self.endpos = [0, 0]
         self.map = self.ai_instance.rep_matrix
         self.map_size = np.shape(self.map)
 
     def run(self):
+        while self.is_running:
+            self.find_path()
+            sleep(1)
+        print("stopped path-finding thread for "+self.ai_instance.name)
+
+    def find_path(self):
+        """
+        finds path
+        """
+        self.target = self.ai_instance.target
+
         if not self.target:
             return
+        self.endpos = self.target.rep_pos
+        self.startpos = self.ai_instance.rep_pos
+
         max_i = self.map_size[0] * self.map_size[1]
 
         # initialize map with zeroes
@@ -256,7 +272,7 @@ class AIPathFinder(threading.Thread):
         for entry in path:
             new_path.append(get_pos_from_rep(entry))
         self.ai_instance.new_path = new_path[::-1]
-        return
+
 
 class Tank():
     """
@@ -386,13 +402,18 @@ class AI(Tank):
         self.thread.start()
 
     def move(self, keys, tanks, obstacles):
+        if not tanks:
+            return
+
         self.target = tanks[0]
-        if self.update_path_flag:
-            self.thread = AIPathFinder(self,)
-            self.thread.start()
-            self.update_path_flag = False
+
         self.path = self.new_path
-        self.correct_movement(obstacles)
+        # if self.path:
+        #     diff = np.subtract(self.pos, self.path[0])
+        #     print(diff)
+        #     # if abs(diff[0]) < GAPS[0] and abs(diff[1]) < GAPS[1]:
+        #     #     self.path.pop(0)
+        #     self.angle = math.atan2(diff[1], diff[0])
         super().move(0, tanks, obstacles)
 
     def draw(self, win):
@@ -544,8 +565,8 @@ class GameManager():
         self.win = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Tank Game")
         pygame.display.set_icon(TANK_1[0])
-        self.font = pygame.font.Font("Perfect_DOS_VGA_437.ttf", SCREEN[0]//15)
-        self.debug_font = pygame.font.Font("Perfect_DOS_VGA_437.ttf", SCREEN[0]//30)
+        self.font = pygame.font.Font(STD_FONT, SCREEN[0]//15)
+        self.debug_font = pygame.font.Font(STD_FONT, SCREEN[0]//30)
 
         self.obst_mgr = ObstacleManager(ROCK)
         self.obst_mgr.build()
@@ -614,6 +635,11 @@ class GameManager():
 
             self.redraw_game_window()
 
+        for tank in self.tanks:
+            if "AI" in tank.name:
+                print("sending kill signal to path-finding thread for "+tank.name+" ...")
+                tank.thread.is_running = False
+
         if winner:
             text = self.font.render("The {} won the game!".format(winner.name), True, (255, 0, 0))
             pos = (SCREEN[0]//20, SCREEN[1]*2//5)
@@ -640,9 +666,9 @@ class GameManager():
         obst_size = self.obst_mgr.rep_matrix.shape
 
         text1 = "bullets: {} obstacles: {} obstacle_matrix: {} "
-        text1.format(bullet_count, obst_count, obst_size)
+        text1 = text1.format(bullet_count, obst_count, obst_size)
         text2 = "HP AI: {} HP Pl: {}"
-        text2.format(ai_health, player_health)
+        text2 = text2.format(ai_health, player_health)
         debug_text1 = self.debug_font.render(text1, True, (255, 0, 0))
         debug_text2 = self.debug_font.render(text2, True, (255, 0, 0))
         pos = np.array([5, HEIGHT*(9/10)])
