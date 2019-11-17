@@ -2,11 +2,12 @@
 TankGame
 a game by JaWs
 """
+
 # std imports
 import math
 from random import randint
 import os
-from time import time, sleep
+from time import sleep, time
 import threading
 
 # extra imports
@@ -48,7 +49,6 @@ STD_FONT = "Perfect_DOS_VGA_437.ttf"
 SIZES = np.array([SIZE_X, SIZE_Y])
 SCREEN = np.array([WIDTH, HEIGHT])
 GAPS = np.divide(SCREEN, SIZES).astype("int32")
-print(GAPS)
 
 #Loading images
 BACKDROP = pygame.image.load("bg.jpg")
@@ -121,22 +121,21 @@ def normalize(vec):
         return vec
     return vec / norm
 
-def get_surrounding(pos):
+def get_surrounding(pos, map_size):
     """
     returns all appending positions of the position.\n
     if diagonal is given, it will return the diagonal\n
     appending blocks as well.
     """
-    surrounding = []
-    surrounding.append([pos[0] + 1, pos[1]]) # right
-    surrounding.append([pos[0] - 1, pos[1]]) # left
-    surrounding.append([pos[0], pos[1] + 1]) # down
-    surrounding.append([pos[0], pos[1] - 1]) # up
-    if DIAGONAL:
-        surrounding.append([pos[0] + 1, pos[1] + 1]) # right - down
-        surrounding.append([pos[0] - 1, pos[1] - 1]) # left - up
-        surrounding.append([pos[0] + 1, pos[1] - 1]) # right - up
-        surrounding.append([pos[0] - 1, pos[1] + 1]) # left - down
+    surrounding = [[pos[0] + 1, pos[1]], # right
+                   [pos[0] - 1, pos[1]], # left
+                   [pos[0], pos[1] + 1], # down
+                   [pos[0], pos[1] - 1]] # up
+
+    # if point is out of boundaries, remove it.
+    for point in surrounding[::-1]:
+        if not(point[0] in range(map_size[0]) and point[1] in range(map_size[1])):
+            surrounding.remove(point)
     return surrounding
 
 def get_pos_from_rep(pos):
@@ -149,6 +148,12 @@ def get_pos_from_rep(pos):
     pos3 = np.add(pos1, pos2)
     pos3 = np.divide(pos3, 2)
     return pos3
+
+def val_map(_map, pos):
+    """
+    returns value on y-x map
+    """
+    return _map[pos[1], pos[0]]
 
 class AIPathFinder(threading.Thread):
     """
@@ -173,107 +178,194 @@ class AIPathFinder(threading.Thread):
         threading.Thread.__init__(self)
         self.ai_instance = ai_instance
         self.is_running = True
-        self.target = 0
-        self.startpos = [0, 0]
-        self.endpos = [0, 0]
         self.map = self.ai_instance.rep_matrix
         self.map_size = np.shape(self.map)
+        self.max_i = self.map_size[0] * self.map_size[1]
+        self.startpos = []
+        self.goal = []
+        self.flood_map = []
+        self.path = []
 
     def run(self):
         while self.is_running:
-            self.find_path()
+
+            old_time = time()
+            self.floodfill()
+
+            print("[{}]: elapsed while floodfilling: {}s"
+                  .format(self.ai_instance.name, time()-old_time))
+
+            old_time2 = time()
+            self.calc_path()
+
+            print("[{}]elapsed while pathfinding: {}s"
+                  .format(self.ai_instance.name, time()-old_time2))
+            print("[{}]total elapsed time: {}s".format(self.ai_instance.name, time()-old_time))
+
             sleep(AI_PATH_FINDING_COOLDOWN)
+
         print("stopped path-finding thread for "+self.ai_instance.name)
 
-    def find_path(self):
-        """
-        finds path
-        """
-        self.target = self.ai_instance.target
+    # def find_path(self):
+    #     """
+    #     finds path
+    #     """
+    #     target = self.ai_instance.target
 
-        if not self.target:
+    #     if not target:
+    #         return
+    #     endpos = target.rep_pos
+    #     startpos = self.ai_instance.rep_pos
+
+    #     # initialize map with zeroes
+    #     filled_map = np.ndarray(self.map_size)
+    #     filled_map.fill(-1)
+    #     # add the start point as init point
+    #     new_points = [startpos]
+    #     # set the iteration to zero
+    #     iteration = 0
+
+    #     filled_map[startpos[1], startpos[0]] = -1
+    #     end_reached = False
+    #     while new_points and not end_reached:
+    #         print(len(new_points))
+    #         # iterate through points
+    #         for point in new_points[::-1]:
+    #             # marking the current point with the current iteration
+    #             filled_map[point[1], point[0]] = iteration
+    #             # add all adjacent positions
+    #             for newp in get_surrounding(point, self.map_size):
+    #                 new_points.append(newp)
+    #             # remove this point from list (is done)
+    #             new_points.remove(point)
+
+    #         # check for invalid points and endposition
+    #         for point in new_points[::-1]:
+
+    #             # if value of point on _map is not equal to 0 (=obstacle), remove it.
+    #             if self.map[point[1], point[0]] != 0:
+    #                 filled_map[point[1], point[0]] = self.max_i
+    #                 new_points.remove(point)
+    #                 continue
+
+    #             # if point is already marked on filled_map, remove it.
+    #             if filled_map[point[1], point[0]] != 0 or np.array_equal(point, startpos):
+    #                 new_points.remove(point)
+    #                 continue
+
+    #             if np.array_equal(point, endpos):
+    #                 # marking the current point with the current iteration
+    #                 filled_map[point[1], point[0]] = iteration
+    #                 end_reached = True
+    #                 continue
+
+    #         # next iteration, increase counter
+    #         iteration += 1
+
+    #     # find the way back to the start pos
+    #     iteration = filled_map[endpos[1], endpos[0]]
+    #     # add the last point (starting point) to path (path will be reversed at the end)
+    #     path = [endpos]
+    #     # set the current point to end
+    #     act_point = endpos
+
+    #     while iteration >= 0:
+
+    #         for newp in get_surrounding(act_point, self.map_size):
+    #             # otherwise, if point is marked with index lower than current iteration...
+    #             if filled_map[newp[1], newp[0]] < iteration and filled_map[newp[1], newp[0]] >= 0:
+    #                 # ...replace current point with new,...
+    #                 act_point = newp
+    #                 # ...save new point to path...
+    #                 path.append(act_point)
+    #                 # and break. I only want to get the first point that has a lower index.
+    #                 break
+
+    #         iteration -= 1 # decrease the index
+
+    #     # remove the last item, which is the startpos position.
+    #     # We don't want to have that in the path
+    #     path.pop()
+    #     # returning the reversed path to get from
+    #     # "self.endpos --> self.startpos" to "startpos --> self.endpos"
+    #     new_path = []
+    #     for entry in path:
+    #         new_path.append(get_pos_from_rep(entry))
+    #     self.ai_instance.new_path = new_path[::-1]
+
+    def floodfill(self):
+        """
+        floodfill
+        """
+        # clean the flood map. If the target is not valid, the calcPath func will recognise it
+        # because the flood map is empty
+
+        self.flood_map = np.zeros(self.map_size) # 0 means: unindexed
+
+        if not self.ai_instance.target:
             return
-        self.endpos = self.target.rep_pos
+
+        self.goal = self.ai_instance.target.rep_pos
         self.startpos = self.ai_instance.rep_pos
 
-        max_i = self.map_size[0] * self.map_size[1]
+        points = [self.startpos]
+        goal_reached = False
+        indexed = []
+        index = 1
+        while points and not goal_reached:
+            # print(len(points))
+            for point in points[::-1]:
 
-        # initialize map with zeroes
-        filled_map = np.zeros(self.map_size)
-        # add the start point as init point
-        new_points = [self.startpos]
-        # set the iteration to zero
-        iteration = 0
+                for new_point in get_surrounding(point, self.map_size):
 
-        filled_map[self.startpos[1], self.startpos[0]] = -1
-        while new_points:
-            # iterate through points
-            for point in new_points[::-1]:
-                # marking the current point with the current iteration
-                filled_map[point[1], point[0]] = iteration
-                # add all adjacent positions
-                for newp in get_surrounding(point):
-                    new_points.append(newp)
-                # remove this point from list (is done)
-                new_points.remove(point)
+                    if val_map(self.map, new_point) == 0:
 
-            # check for invalid points
-            for point in new_points[::-1]:
+                        if val_map(self.flood_map, new_point) == 0:
 
-                # if point is out of boundaries, remove it.
-                if not(point[0] in range(self.map_size[0]) and point[1] in range(self.map_size[1])):
-                    new_points.remove(point)
-                    continue
+                            if not np.array_equal(new_point, self.startpos):
 
-                # if value of point on _map is not equal to 0 (=obstacle), remove it.
-                if self.map[point[1], point[0]] != 0:
-                    filled_map[point[1], point[0]] = max_i
-                    new_points.remove(point)
-                    continue
+                                if not new_point in indexed:
 
-                # if point is already marked on filled_map, remove it.
-                if filled_map[point[1], point[0]] != 0 or np.array_equal(point, self.startpos):
-                    new_points.remove(point)
-                    continue
+                                    if np.array_equal(new_point, self.goal):
+                                        print("goal reached!")
+                                        goal_reached = True
+                                        self.flood_map[new_point[1], new_point[0]] = index+1
+                                        break
 
-            # next iteration, increase counter
-            iteration += 1
+                                    points.append(new_point)
+                                    indexed.append(new_point)
 
-        # find the way back to the start pos
-        iteration = filled_map[self.endpos[1], self.endpos[0]]
-        # add the last point (starting point) to path (path will be reversed at the end)
-        path = [self.endpos]
-        # set the current point to end
-        act_point = self.endpos
+                self.flood_map[point[1], point[0]] = index
+                points.remove(point)
+            index += 1
+        print(self.flood_map)
 
-        while iteration >= 0:
+    def calc_path(self):
+        """
+        calculates the path with the given floodMap
+        """
+        # if flood map is empty, which means the target val of the AI is not set, exit.
+        if not self.flood_map.any():
+            return
 
-            for newp in get_surrounding(act_point):
-                # if point is out of boundaries, remove it.
-                if not(newp[0] in range(self.map_size[0]) and newp[1] in range(self.map_size[1])):
-                    continue
+        act_pos = self.goal
+        act_index = val_map(self.flood_map, act_pos)
+        new_path = [self.goal]
+        while act_index > 1:
+            for new_point in get_surrounding(act_pos, self.map_size):
+                if (val_map(self.flood_map, new_point) < act_index
+                        and val_map(self.flood_map, new_point) > 0):
 
-                # otherwise, if point is marked with index lower than current iteration...
-                if filled_map[newp[1], newp[0]] < iteration:
-                    # ...replace current point with new,...
-                    act_point = newp
-                    # ...save new point to path...
-                    path.append(act_point)
-                    # and break. I only want to get the first point that has a lower index.
+                    act_pos = new_point
+                    act_index -= 1
+                    new_path.append(act_pos)
                     break
-
-            iteration -= 1 # decrease the index
-
-        # remove the last item, which is the self.startpos position.
-        # We don't want to have that in the path
-        path.pop()
-        # returning the reversed path to get from
-        # "self.endpos --> self.startpos" to "self.startpos --> self.endpos"
-        new_path = []
-        for entry in path:
-            new_path.append(get_pos_from_rep(entry))
-        self.ai_instance.new_path = new_path[::-1]
-
+        
+        # proccessing inputs
+        self.path = []
+        for entry in new_path:
+            self.path.append(get_pos_from_rep(entry))
+        self.path = self.path[::-1]
 
 class Tank():
     """
@@ -395,7 +487,6 @@ class AI(Tank):
         super().__init__(imgset, coords, name, uid)
         self.rep_matrix = rep_matrix
         self.path = []
-        self.update_path_flag = False
         self.bullet_mgr.set_ai()
         self.new_path = []
         self.target = 0
@@ -408,7 +499,9 @@ class AI(Tank):
 
         self.target = tanks[0]
 
-        self.path = self.new_path
+        # get new path from pathfinding thread
+        self.path = self.thread.path
+
         if self.path:
             diff = np.subtract(self.path[0], self.pos).astype("int32")
             if math.sqrt(diff[0]**2 + diff[1]**2) < math.sqrt((GAPS[0]/2)**2 + (GAPS[1]/2)**2):
@@ -586,10 +679,11 @@ class GameManager():
         self.tanks = []
         self.ais = []
 
-        player = Player(TANK_1, (400, 400), "Player", keyset,
+        player = Player(TANK_1, (400, 400), "Player 1", keyset,
                         self.obst_mgr.rep_matrix, uid_create(10))
         self.tanks.append(player)
-        ai_instance = AI(TANK_2, (100, 100), "AI", self.obst_mgr.rep_matrix, uid_create(10))
+
+        ai_instance = AI(TANK_2, (100, 100), "AI 1", self.obst_mgr.rep_matrix, uid_create(10))
         self.tanks.append(ai_instance)
         self.ais.append(ai_instance)
 
@@ -610,45 +704,48 @@ class GameManager():
         """
         main loop of the game.
         """
-        pf_time = time()
         clock = pygame.time.Clock()
         run = True
         winner = 0
-        while run:
-            clock.tick(240)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
+        try:
+            while run:
+                clock.tick(240)
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False
+
+                keys = pygame.key.get_pressed()
+
+                for tank in self.tanks[::1]:
+                    custom = self.tanks.copy()
+
+                    for ctank in custom[::1]:
+                        if ctank.uid == tank.uid:
+                            custom.remove(ctank)
+
+                    tank.move(keys, custom, self.obst_mgr.obstacles)
+                    if tank.delete_flag:
+                        self.tanks.remove(tank)
+                        if isinstance(tank, AI):
+                            debug(tank.name +
+                                  " was killed, removing it from list and stopping pathfinding.")
+                            debug("sending kill signal to path-finding thread for "
+                                  +tank.name+" ...")
+                            tank.thread.is_running = False
+                            self.ais.remove(tank)
+
+                if len(self.tanks) <= 1:
                     run = False
+                    if len(self.tanks) == 1:
+                        winner = self.tanks[0]
 
-            keys = pygame.key.get_pressed()
+                self.redraw_game_window()
+        except KeyboardInterrupt:
+            debug("Game interrupted by Keystroke (Ctrl + C)")
 
-            for tank in self.tanks[::1]:
-                custom = self.tanks.copy()
-
-                for ctank in custom[::1]:
-                    if ctank.uid == tank.uid:
-                        custom.remove(ctank)
-
-                tank.move(keys, custom, self.obst_mgr.obstacles)
-                if tank.delete_flag:
-                    self.tanks.remove(tank)
-
-            if len(self.tanks) <= 1:
-                run = False
-                if len(self.tanks) == 1:
-                    winner = self.tanks[0]
-
-            if (time() - pf_time) > AI_PATH_FINDING_COOLDOWN:
-                for ai_instance in self.ais:
-                    ai_instance.update_path_flag = True
-                pf_time = time()
-
-            self.redraw_game_window()
-
-        for tank in self.tanks:
-            if "AI" in tank.name:
-                print("sending kill signal to path-finding thread for "+tank.name+" ...")
-                tank.thread.is_running = False
+        for ai_inst in self.ais:
+            debug("sending kill signal to path-finding thread for "+ai_inst.name+" ...")
+            ai_inst.thread.is_running = False
 
         if winner:
             text = self.font.render("The {} won the game!".format(winner.name), True, (255, 0, 0))
