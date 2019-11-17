@@ -646,7 +646,7 @@ class GameManager():
         winner = 0
         try:
             while run:
-                clock.tick(240)
+                clock.tick(120)
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         run = False
