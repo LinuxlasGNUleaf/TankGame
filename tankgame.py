@@ -5,10 +5,10 @@ a game by JaWs
 
 # std imports
 import math
-from random import randint
 import os
-from time import sleep, time
 import threading
+from random import randint
+from time import sleep, time
 
 # extra imports
 import numpy as np
@@ -206,93 +206,6 @@ class AIPathFinder(threading.Thread):
 
         print("stopped path-finding thread for "+self.ai_instance.name)
 
-    # def find_path(self):
-    #     """
-    #     finds path
-    #     """
-    #     target = self.ai_instance.target
-
-    #     if not target:
-    #         return
-    #     endpos = target.rep_pos
-    #     startpos = self.ai_instance.rep_pos
-
-    #     # initialize map with zeroes
-    #     filled_map = np.ndarray(self.map_size)
-    #     filled_map.fill(-1)
-    #     # add the start point as init point
-    #     new_points = [startpos]
-    #     # set the iteration to zero
-    #     iteration = 0
-
-    #     filled_map[startpos[1], startpos[0]] = -1
-    #     end_reached = False
-    #     while new_points and not end_reached:
-    #         print(len(new_points))
-    #         # iterate through points
-    #         for point in new_points[::-1]:
-    #             # marking the current point with the current iteration
-    #             filled_map[point[1], point[0]] = iteration
-    #             # add all adjacent positions
-    #             for newp in get_surrounding(point, self.map_size):
-    #                 new_points.append(newp)
-    #             # remove this point from list (is done)
-    #             new_points.remove(point)
-
-    #         # check for invalid points and endposition
-    #         for point in new_points[::-1]:
-
-    #             # if value of point on _map is not equal to 0 (=obstacle), remove it.
-    #             if self.map[point[1], point[0]] != 0:
-    #                 filled_map[point[1], point[0]] = self.max_i
-    #                 new_points.remove(point)
-    #                 continue
-
-    #             # if point is already marked on filled_map, remove it.
-    #             if filled_map[point[1], point[0]] != 0 or np.array_equal(point, startpos):
-    #                 new_points.remove(point)
-    #                 continue
-
-    #             if np.array_equal(point, endpos):
-    #                 # marking the current point with the current iteration
-    #                 filled_map[point[1], point[0]] = iteration
-    #                 end_reached = True
-    #                 continue
-
-    #         # next iteration, increase counter
-    #         iteration += 1
-
-    #     # find the way back to the start pos
-    #     iteration = filled_map[endpos[1], endpos[0]]
-    #     # add the last point (starting point) to path (path will be reversed at the end)
-    #     path = [endpos]
-    #     # set the current point to end
-    #     act_point = endpos
-
-    #     while iteration >= 0:
-
-    #         for newp in get_surrounding(act_point, self.map_size):
-    #             # otherwise, if point is marked with index lower than current iteration...
-    #             if filled_map[newp[1], newp[0]] < iteration and filled_map[newp[1], newp[0]] >= 0:
-    #                 # ...replace current point with new,...
-    #                 act_point = newp
-    #                 # ...save new point to path...
-    #                 path.append(act_point)
-    #                 # and break. I only want to get the first point that has a lower index.
-    #                 break
-
-    #         iteration -= 1 # decrease the index
-
-    #     # remove the last item, which is the startpos position.
-    #     # We don't want to have that in the path
-    #     path.pop()
-    #     # returning the reversed path to get from
-    #     # "self.endpos --> self.startpos" to "startpos --> self.endpos"
-    #     new_path = []
-    #     for entry in path:
-    #         new_path.append(get_pos_from_rep(entry))
-    #     self.ai_instance.new_path = new_path[::-1]
-
     def floodfill(self):
         """
         floodfill
@@ -360,7 +273,7 @@ class AIPathFinder(threading.Thread):
                     act_index -= 1
                     new_path.append(act_pos)
                     break
-        
+
         # proccessing inputs
         self.path = []
         for entry in new_path:
