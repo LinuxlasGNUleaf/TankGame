@@ -57,6 +57,9 @@ TANK_2 = [pygame.image.load("tank3.png"), pygame.image.load("tank4.png")]
 BULLET = pygame.image.load("bullet.png")
 ROCK = pygame.image.load("rock.png")
 
+# Pathfinding "elapsed time" list
+PATH_ELAPSED = []
+
 def debug(string):
     """
     printing message when debug is turned on.
@@ -120,17 +123,6 @@ def normalize(vec):
     if norm == 0:
         return vec
     return vec / norm
-
-def get_pos_from_rep(pos):
-    """
-    converts representer position to normal position
-    """
-    pos1 = np.multiply(pos, GAPS)
-    pos2 = np.add(pos, [1, 1])
-    pos2 = np.multiply(pos2, GAPS)
-    pos3 = np.add(pos1, pos2)
-    pos3 = np.divide(pos3, 2)
-    return pos3
 
 class Map():
     """
@@ -224,17 +216,11 @@ class AIPathFinder(threading.Thread):
         while self.is_running:
 
             old_time = time()
+
             self.floodfill()
-
-            print("[{}]: elapsed while floodfilling: {}s"
-                  .format(self.ai_instance.name, time()-old_time))
-
-            old_time2 = time()
             self.calc_path()
 
-            print("[{}]elapsed while pathfinding: {}s"
-                  .format(self.ai_instance.name, time()-old_time2))
-            print("[{}]total elapsed time: {}s".format(self.ai_instance.name, time()-old_time))
+            PATH_ELAPSED.append(time()-old_time)
 
             sleep(AI_PATH_FINDING_COOLDOWN)
 
@@ -255,6 +241,9 @@ class AIPathFinder(threading.Thread):
         self.goal = self.ai_instance.target.rep_pos
         self.startpos = self.ai_instance.rep_pos
 
+        if np.array_equal(self.goal, self.startpos):
+            return
+
         points = [self.startpos]
         goal_reached = False
         indexed = []
@@ -265,26 +254,22 @@ class AIPathFinder(threading.Thread):
 
                 for new_point in self.map.get_surrounding(point):
 
-                    if self.map.get_val(new_point) == 0:
+                    if not(self.map.get_val(new_point) or
+                           self.flood_map.get_val(new_point) or
+                           np.array_equal(new_point, self.startpos) or
+                           new_point in indexed):
+                        if np.array_equal(new_point, self.goal):
+                            goal_reached = True
+                            self.flood_map.set_val(new_point, index+1)
+                            break
 
-                        if self.flood_map.get_val(new_point) == 0:
-
-                            if not np.array_equal(new_point, self.startpos):
-
-                                if not new_point in indexed:
-
-                                    if np.array_equal(new_point, self.goal):
-                                        goal_reached = True
-                                        self.flood_map.set_val(new_point, index+1)
-                                        break
-
-                                    points.append(new_point)
-                                    indexed.append(new_point)
+                        else:
+                            points.append(new_point)
+                            indexed.append(new_point)
 
                 self.flood_map.set_val(point, index)
                 points.remove(point)
             index += 1
-        # debug(self.flood_map)
 
     def calc_path(self):
         """
@@ -292,6 +277,9 @@ class AIPathFinder(threading.Thread):
         """
         # if flood map is empty, which means the target val of the AI is not set, exit.
         if not self.flood_map.matrix.any():
+            return
+
+        if np.array_equal(self.goal, self.startpos):
             return
 
         act_pos = self.goal
@@ -310,7 +298,9 @@ class AIPathFinder(threading.Thread):
         # proccessing inputs
         self.path = []
         for entry in new_path:
-            self.path.append(get_pos_from_rep(entry))
+            temp = np.add(np.multiply(entry, GAPS), np.multiply(np.add(entry, [1, 1]), GAPS))
+            self.path.append(np.divide(temp, 2))
+
         self.path = self.path[::-1]
 
 
@@ -877,3 +867,10 @@ class ObstacleManager():
 if __name__ == "__main__":
     GAME_MGR = GameManager()
     GAME_MGR.main()
+
+    if PATH_ELAPSED:
+        print("Average time elapsed while pathfinding:")
+        TOTAL = 0.0
+        for time in PATH_ELAPSED:
+            TOTAL += time
+        print(str(TOTAL/len(PATH_ELAPSED))+"s")
