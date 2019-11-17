@@ -121,23 +121,6 @@ def normalize(vec):
         return vec
     return vec / norm
 
-def get_surrounding(pos, map_size):
-    """
-    returns all appending positions of the position.\n
-    if diagonal is given, it will return the diagonal\n
-    appending blocks as well.
-    """
-    surrounding = [[pos[0] + 1, pos[1]], # right
-                   [pos[0] - 1, pos[1]], # left
-                   [pos[0], pos[1] + 1], # down
-                   [pos[0], pos[1] - 1]] # up
-
-    # if point is out of boundaries, remove it.
-    for point in surrounding[::-1]:
-        if not(point[0] in range(map_size[0]) and point[1] in range(map_size[1])):
-            surrounding.remove(point)
-    return surrounding
-
 def get_pos_from_rep(pos):
     """
     converts representer position to normal position
@@ -149,11 +132,62 @@ def get_pos_from_rep(pos):
     pos3 = np.divide(pos3, 2)
     return pos3
 
-def val_map(_map, pos):
+class Map():
     """
-    returns value on y-x map
+    map class\n
+    wrapper for a 2d numpy array with better index access, etc.\n
+    IN THIS ARRAY Y IS THE INDEX OF THE OUTER ARRAY,\n
+    WHILE X IS THE INDEX OF THE INNER ARRAY.\n
+    For example the map a:\n
+    a = [\n[1,2],\n[3,4]\n]\n
+    if you access the map a with the pos b:\n
+    b = [0,1]\n
+    it means index 1 in the outer array (y) which is [3,4],\n
+    and 0 in the inner array (x), which means 3.\n
+    So a.get_val(b) would return 3.
     """
-    return _map[pos[1], pos[0]]
+    def __init__(self, sizes):
+        self.matrix = np.zeros(sizes)
+        self.sizes = sizes
+
+    def set_all(self, scalar):
+        """
+        fill the map with a scalar value (can be int, float, bool, ...)
+        """
+        self.matrix.fill(scalar)
+
+    def get_val(self, pos):
+        """
+        GET the value of the map at a certain position.\n
+        For further information on how to access this map class,
+        see Map()
+        """
+        return self.matrix[pos[1], pos[0]]
+
+    def set_val(self, pos, val):
+        """
+        SET the value of the map at a certain position.\n
+        For further information on how to access this map class,
+        see Map()
+        """
+        self.matrix[pos[1], pos[0]] = val
+
+    def get_surrounding(self, pos):
+        """
+        returns all appending positions of the position.\n
+        will not return positions outside the map boundaries
+        """
+        surrounding = [[pos[0] + 1, pos[1]], # right
+                       [pos[0] - 1, pos[1]], # left
+                       [pos[0], pos[1] + 1], # down
+                       [pos[0], pos[1] - 1]] # up
+
+        # if point is out of boundaries, remove it.
+        for point in surrounding[::-1]:
+            if not(point[0] in range(self.sizes[0]) and point[1] in range(self.sizes[1])):
+                surrounding.remove(point)
+        return surrounding
+
 
 class AIPathFinder(threading.Thread):
     """
@@ -179,11 +213,11 @@ class AIPathFinder(threading.Thread):
         self.ai_instance = ai_instance
         self.is_running = True
         self.map = self.ai_instance.rep_matrix
-        self.map_size = np.shape(self.map)
+        self.map_size = self.map.sizes
         self.max_i = self.map_size[0] * self.map_size[1]
         self.startpos = []
         self.goal = []
-        self.flood_map = []
+        self.flood_map = Map(self.map_size)
         self.path = []
 
     def run(self):
@@ -213,7 +247,7 @@ class AIPathFinder(threading.Thread):
         # clean the flood map. If the target is not valid, the calcPath func will recognise it
         # because the flood map is empty
 
-        self.flood_map = np.zeros(self.map_size) # 0 means: unindexed
+        self.flood_map = Map(self.map_size) # 0 means: unindexed
 
         if not self.ai_instance.target:
             return
@@ -229,45 +263,44 @@ class AIPathFinder(threading.Thread):
             # print(len(points))
             for point in points[::-1]:
 
-                for new_point in get_surrounding(point, self.map_size):
+                for new_point in self.map.get_surrounding(point):
 
-                    if val_map(self.map, new_point) == 0:
+                    if self.map.get_val(new_point) == 0:
 
-                        if val_map(self.flood_map, new_point) == 0:
+                        if self.flood_map.get_val(new_point) == 0:
 
                             if not np.array_equal(new_point, self.startpos):
 
                                 if not new_point in indexed:
 
                                     if np.array_equal(new_point, self.goal):
-                                        print("goal reached!")
                                         goal_reached = True
-                                        self.flood_map[new_point[1], new_point[0]] = index+1
+                                        self.flood_map.set_val(new_point, index+1)
                                         break
 
                                     points.append(new_point)
                                     indexed.append(new_point)
 
-                self.flood_map[point[1], point[0]] = index
+                self.flood_map.set_val(point, index)
                 points.remove(point)
             index += 1
-        print(self.flood_map)
+        # debug(self.flood_map)
 
     def calc_path(self):
         """
         calculates the path with the given floodMap
         """
         # if flood map is empty, which means the target val of the AI is not set, exit.
-        if not self.flood_map.any():
+        if not self.flood_map.matrix.any():
             return
 
         act_pos = self.goal
-        act_index = val_map(self.flood_map, act_pos)
+        act_index = self.flood_map.get_val(act_pos)
         new_path = [self.goal]
         while act_index > 1:
-            for new_point in get_surrounding(act_pos, self.map_size):
-                if (val_map(self.flood_map, new_point) < act_index
-                        and val_map(self.flood_map, new_point) > 0):
+            for new_point in self.flood_map.get_surrounding(act_pos):
+                if (self.flood_map.get_val(new_point) < act_index
+                        and self.flood_map.get_val(new_point) > 0):
 
                     act_pos = new_point
                     act_index -= 1
@@ -279,6 +312,7 @@ class AIPathFinder(threading.Thread):
         for entry in new_path:
             self.path.append(get_pos_from_rep(entry))
         self.path = self.path[::-1]
+
 
 class Tank():
     """
@@ -683,7 +717,7 @@ class GameManager():
                 ai_health = tank.pos.astype("int32")
 
         obst_count = len(self.obst_mgr.obstacles)
-        obst_size = self.obst_mgr.rep_matrix.shape
+        obst_size = self.obst_mgr.rep_matrix.sizes
 
         text1 = "bullets: {} obstacles: {} obstacle_matrix: {} "
         text1 = text1.format(bullet_count, obst_count, obst_size)
@@ -768,7 +802,7 @@ class ObstacleManager():
         self.obstacles = []
         self.levels = []
         self.obst_img = obst_img
-        self.rep_matrix = np.zeros(SIZES)
+        self.rep_matrix = Map(SIZES)
 
         #get all .lvl files
         for _, _, files in os.walk("../"):
@@ -825,7 +859,7 @@ class ObstacleManager():
             for char in line:
                 if char == "X":
                     self.obstacles.append(Obstacle(self.obst_img, pos, GAPS))
-                    self.rep_matrix[grid[1], grid[0]] = 1
+                    self.rep_matrix.set_val(grid, 1)
                 pos[0] += GAPS[0]
                 grid[0] += 1
             pos[1] += GAPS[1]
