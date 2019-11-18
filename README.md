@@ -17,11 +17,11 @@ The goal of this project is to create a small tank game where you control a Tank
 - numpy arrays / matrices for better performance ✓
 - subclassing Tank -> Player, Tank -> AI, Sprite -> Bullet and Sprite -> Obstacle to clean up the code ✓
 - AI ✓
-- rudimentary path finding, which means the AI drives towards the player ✓
 - variable number of players and AIs to extend the game ✓
+- advanced pathfinding, using floodfill ✓
 
 ### WIP
-- advanced pathfinding
+- splitting the tank into two parts: bottom (tank) and top (gun) that can rotate seperately
 
 ### Todo
 - scoreboard and roundup
